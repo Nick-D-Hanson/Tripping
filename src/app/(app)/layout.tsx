@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="truncate text-sm sm:text-base">Tripping</span>
           </Link>
           <div className="flex items-center">
-            <UserButton size="icon" />
+            <UserButton size="icon" disableDefaultLinks />
           </div>
         </div>
       </header>
