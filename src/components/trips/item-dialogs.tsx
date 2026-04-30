@@ -10,17 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { toDateTimeInputValue } from "@/lib/dates";
 
 type BaseDialogProps = {
   tripId: string;
   canEdit: boolean;
 };
-
-function dateTimeValue(value: Date | string | null | undefined) {
-  if (!value) return "";
-  const date = typeof value === "string" ? new Date(value) : value;
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
 
 function SubmitButton({ children }: { children: React.ReactNode }) {
   return (
@@ -115,11 +110,11 @@ export function SegmentDialog({
             />
             <div className="grid gap-2">
               <Label>Start time</Label>
-              <Input name="startDatetime" type="datetime-local" defaultValue={dateTimeValue(segment?.startDatetime)} required />
+              <Input name="startDatetime" type="datetime-local" defaultValue={toDateTimeInputValue(segment?.startDatetime)} required />
             </div>
             <div className="grid gap-2">
               <Label>End time</Label>
-              <Input name="endDatetime" type="datetime-local" defaultValue={dateTimeValue(segment?.endDatetime)} />
+              <Input name="endDatetime" type="datetime-local" defaultValue={toDateTimeInputValue(segment?.endDatetime)} />
             </div>
           </div>
           <div className="grid gap-2">
@@ -195,8 +190,8 @@ export function LodgingDialog({
             placeholder="Search for a hotel, stay, or address"
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2"><Label>Check-in</Label><Input name="checkIn" type="datetime-local" defaultValue={dateTimeValue(stay?.checkIn)} required /></div>
-            <div className="grid gap-2"><Label>Check-out</Label><Input name="checkOut" type="datetime-local" defaultValue={dateTimeValue(stay?.checkOut)} /></div>
+            <div className="grid gap-2"><Label>Check-in</Label><Input name="checkIn" type="datetime-local" defaultValue={toDateTimeInputValue(stay?.checkIn)} required /></div>
+            <div className="grid gap-2"><Label>Check-out</Label><Input name="checkOut" type="datetime-local" defaultValue={toDateTimeInputValue(stay?.checkOut)} /></div>
           </div>
           <div className="grid gap-2">
             <Label>Optional link</Label>
@@ -268,7 +263,7 @@ export function ActivityDialog({
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2"><Label>Category</Label><Input name="category" defaultValue={activity?.category ?? ""} /></div>
-            <div className="grid gap-2"><Label>Date and time</Label><Input name="datetime" type="datetime-local" defaultValue={dateTimeValue(activity?.datetime)} required /></div>
+            <div className="grid gap-2"><Label>Date and time</Label><Input name="datetime" type="datetime-local" defaultValue={toDateTimeInputValue(activity?.datetime)} required /></div>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input name="includeInRoute" type="checkbox" defaultChecked={activity?.includeInRoute} className="size-4 rounded border-input" />
@@ -342,7 +337,7 @@ export function FoodDialog({
           />
           <div className="grid gap-2">
             <Label>Date and time</Label>
-            <Input name="datetime" type="datetime-local" defaultValue={dateTimeValue(food?.datetime)} required />
+            <Input name="datetime" type="datetime-local" defaultValue={toDateTimeInputValue(food?.datetime)} required />
           </div>
           <div className="grid gap-2">
             <Label>Optional link</Label>

@@ -3,6 +3,7 @@
 import mapboxgl, { LngLatBounds } from "mapbox-gl";
 import type { StyleSpecification } from "mapbox-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { fmtDateTime } from "@/lib/dates";
 
 type Point = {
   id: string;
@@ -11,6 +12,8 @@ type Point = {
   lng: number;
   lat: number;
   detail?: string;
+  detailDateTime?: string | Date;
+  detailPrefix?: string;
 };
 
 type TripMapProps = {
@@ -183,11 +186,14 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = points.map((point) => {
+      const detailText = point.detailDateTime
+        ? `${point.detailPrefix ? `${point.detailPrefix} ` : ""}${fmtDateTime(point.detailDateTime)}`
+        : point.detail;
       const marker = new mapboxgl.Marker({ color: markerColors[point.kind] })
         .setLngLat([point.lng, point.lat])
         .setPopup(
           new mapboxgl.Popup({ offset: 20 }).setHTML(
-            `<strong>${point.label}</strong><br/><span>${point.kind}</span>${point.detail ? `<br/><small>${point.detail}</small>` : ""}`,
+            `<strong>${point.label}</strong><br/><span>${point.kind}</span>${detailText ? `<br/><small>${detailText}</small>` : ""}`,
           ),
         )
         .addTo(map);

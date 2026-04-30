@@ -1,10 +1,12 @@
+"use client";
+
 import { Activity, ChevronDown, Hotel, Plane, UtensilsCrossed } from "lucide-react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
+import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
 
 type TimelineProps = {
   tripId: string;
@@ -68,7 +70,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
   const items = [
     ...segments.map((item) => ({
       id: `segment-${item.id}`,
-      when: item.startDatetime,
+      when: dateValue(item.startDatetime),
       type: "travel" as const,
       kindLabel: item.type === "flight" ? "Flight" : "Drive",
       title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
@@ -79,7 +81,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
     })),
     ...stays.map((item) => ({
       id: `lodging-${item.id}`,
-      when: item.checkIn,
+      when: dateValue(item.checkIn),
       type: "lodging" as const,
       kindLabel: "Lodging",
       title: item.title || item.name,
@@ -90,7 +92,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
     })),
     ...activities.map((item) => ({
       id: `activity-${item.id}`,
-      when: item.datetime,
+      when: dateValue(item.datetime),
       type: "activity" as const,
       kindLabel: item.category || "Activity",
       title: item.title || item.name,
@@ -102,7 +104,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
     })),
     ...food.map((item) => ({
       id: `food-${item.id}`,
-      when: item.datetime,
+      when: dateValue(item.datetime),
       type: "food" as const,
       kindLabel: "Food",
       title: item.title || item.name,

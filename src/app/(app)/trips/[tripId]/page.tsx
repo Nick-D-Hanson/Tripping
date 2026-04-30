@@ -7,7 +7,7 @@ import { TripMap } from "@/components/trips/trip-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtDate, fmtDateTime } from "@/lib/dates";
+import { fmtDate } from "@/lib/dates";
 import { getTripPageData } from "@/lib/data";
 import { canEdit, canManage } from "@/lib/permissions";
 
@@ -52,7 +52,8 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         label: stay.title || stay.name,
         lat: stay.lat!,
         lng: stay.lng!,
-        detail: fmtDateTime(stay.checkIn),
+        detailDateTime: stay.checkIn,
+        detailPrefix: "Check-in",
       })),
     ...activities
       .filter((activity) => activity.lat != null && activity.lng != null)
@@ -72,7 +73,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         label: item.title || item.name,
         lat: item.lat!,
         lng: item.lng!,
-        detail: fmtDateTime(item.datetime),
+        detailDateTime: item.datetime,
       })),
   ];
 
