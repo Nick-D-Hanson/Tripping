@@ -1,8 +1,8 @@
 "use client";
 
-import { Edit, Hotel, MapPin, Plane, Plus } from "lucide-react";
+import { Edit, Hotel, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
-import { saveActivity, saveLodging, saveSegment } from "@/app/actions";
+import { saveActivity, saveFood, saveLodging, saveSegment } from "@/app/actions";
 import { LocationSearch } from "@/components/trips/location-search";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -280,6 +280,79 @@ export function ActivityDialog({
           </div>
           <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={activity?.notes ?? ""} /></div>
           <div className="flex justify-end"><SubmitButton><MapPin className="size-4" /> Save activity</SubmitButton></div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function FoodDialog({
+  tripId,
+  canEdit,
+  food,
+}: BaseDialogProps & {
+  food?: {
+    id: string;
+    title: string | null;
+    name: string;
+    url: string | null;
+    address: string | null;
+    lat: number | null;
+    lng: number | null;
+    datetime: Date;
+    notes: string | null;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  if (!canEdit) return null;
+  const action = async (formData: FormData) => {
+    await saveFood(tripId, food?.id ?? null, formData);
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant={food ? "ghost" : "outline"} size={food ? "sm" : "default"}>
+          {food ? <Edit /> : <Plus />}
+          {food ? "Edit" : "Food"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{food ? "Edit food stop" : "Add food stop"}</DialogTitle>
+          <DialogDescription>Restaurants, cafes, and meal stops appear as their own timeline and map items.</DialogDescription>
+        </DialogHeader>
+        <form action={action} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Display title</Label>
+            <Input name="title" defaultValue={food?.title ?? ""} placeholder="Brunch at Snooze" />
+          </div>
+          <LocationSearch
+            label="Food location"
+            addressName="address"
+            locationNameName="name"
+            latName="lat"
+            lngName="lng"
+            defaultAddress={food?.address}
+            defaultLocationName={food?.name}
+            defaultLat={food?.lat}
+            defaultLng={food?.lng}
+            placeholder="Search for a restaurant, cafe, or bar"
+          />
+          <div className="grid gap-2">
+            <Label>Date and time</Label>
+            <Input name="datetime" type="datetime-local" defaultValue={dateTimeValue(food?.datetime)} required />
+          </div>
+          <div className="grid gap-2">
+            <Label>Optional link</Label>
+            <Input name="url" type="url" defaultValue={food?.url ?? ""} placeholder="https://example.com/menu" />
+          </div>
+          <div className="grid gap-2">
+            <Label>Notes</Label>
+            <Textarea name="notes" defaultValue={food?.notes ?? ""} />
+          </div>
+          <div className="flex justify-end"><SubmitButton><UtensilsCrossed className="size-4" /> Save food</SubmitButton></div>
         </form>
       </DialogContent>
     </Dialog>

@@ -1,15 +1,12 @@
-import { Activity, CalendarDays, Hotel, Pencil, Plane, Settings, Trash2, UsersRound } from "lucide-react";
+import { CalendarDays, Pencil, Settings, Trash2, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { deleteTrip } from "@/app/actions";
-import { DeleteButton } from "@/components/trips/delete-button";
-import { ExternalLinkButton } from "@/components/trips/external-link-button";
-import { ActivityDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
+import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { Timeline } from "@/components/trips/timeline";
 import { TripMap } from "@/components/trips/trip-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { fmtDate, fmtDateTime } from "@/lib/dates";
 import { getTripPageData } from "@/lib/data";
 import { canEdit, canManage } from "@/lib/permissions";
@@ -18,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const { trip, segments, stays, activities, role } = await getTripPageData(tripId);
+  const { trip, segments, stays, activities, food, role } = await getTripPageData(tripId);
   const editable = canEdit(role);
   const manageable = canManage(role);
 
@@ -66,6 +63,16 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         lat: activity.lat!,
         lng: activity.lng!,
         detail: activity.includeInRoute ? "Included in route" : activity.category ?? undefined,
+      })),
+    ...food
+      .filter((item) => item.lat != null && item.lng != null)
+      .map((item) => ({
+        id: item.id,
+        kind: "food" as const,
+        label: item.title || item.name,
+        lat: item.lat!,
+        lng: item.lng!,
+        detail: fmtDateTime(item.datetime),
       })),
   ];
 
@@ -119,7 +126,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -131,6 +138,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
                 <SegmentDialog tripId={trip.id} canEdit={editable} />
                 <LodgingDialog tripId={trip.id} canEdit={editable} />
                 <ActivityDialog tripId={trip.id} canEdit={editable} />
+                <FoodDialog tripId={trip.id} canEdit={editable} />
               </div>
             </div>
           </CardHeader>
@@ -145,91 +153,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
           </CardContent>
         </Card>
 
-        <Timeline segments={segments} stays={stays} activities={activities} />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Plane className="size-5" /> Travel</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {segments.length === 0 ? <p className="text-sm text-muted-foreground">No travel segments yet.</p> : null}
-            {segments.map((segment) => (
-              <div key={segment.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{segment.title || `${segment.startLocationName} to ${segment.endLocationName}`}</p>
-                      <ExternalLinkButton href={segment.url} label={segment.title || `${segment.startLocationName} to ${segment.endLocationName}`} />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{segment.type} · {fmtDateTime(segment.startDatetime)}</p>
-                  </div>
-                  <div className="flex">
-                    <SegmentDialog tripId={trip.id} canEdit={editable} segment={segment} />
-                    {editable ? <DeleteButton kind="segment" tripId={trip.id} id={segment.id} /> : null}
-                  </div>
-                </div>
-                {segment.notes ? <><Separator className="my-3" /><p className="text-sm">{segment.notes}</p></> : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Hotel className="size-5" /> Lodging</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {stays.length === 0 ? <p className="text-sm text-muted-foreground">No lodging yet.</p> : null}
-            {stays.map((stay) => (
-              <div key={stay.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{stay.title || stay.name}</p>
-                      <ExternalLinkButton href={stay.url} label={stay.title || stay.name} />
-                    </div>
-                    <p className="text-sm text-muted-foreground">{fmtDateTime(stay.checkIn)}</p>
-                  </div>
-                  <div className="flex">
-                    <LodgingDialog tripId={trip.id} canEdit={editable} stay={stay} />
-                    {editable ? <DeleteButton kind="lodging" tripId={trip.id} id={stay.id} /> : null}
-                  </div>
-                </div>
-                {stay.address ? <p className="mt-2 text-sm text-muted-foreground">{stay.address}</p> : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity className="size-5" /> Activities</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {activities.length === 0 ? <p className="text-sm text-muted-foreground">No activities yet.</p> : null}
-            {activities.map((activity) => (
-              <div key={activity.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{activity.title || activity.name}</p>
-                      <ExternalLinkButton href={activity.url} label={activity.title || activity.name} />
-                      {activity.includeInRoute ? <Badge variant="outline">route</Badge> : null}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{fmtDateTime(activity.datetime)}</p>
-                  </div>
-                  <div className="flex">
-                    <ActivityDialog tripId={trip.id} canEdit={editable} activity={activity} />
-                    {editable ? <DeleteButton kind="activity" tripId={trip.id} id={activity.id} /> : null}
-                  </div>
-                </div>
-                {activity.category ? <p className="mt-2 text-sm text-muted-foreground">{activity.category}</p> : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <Timeline tripId={trip.id} canEdit={editable} segments={segments} stays={stays} activities={activities} food={food} />
       </div>
 
       {!editable ? (

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type Point = {
   id: string;
-  kind: "travel" | "lodging" | "activity";
+  kind: "travel" | "lodging" | "activity" | "food";
   label: string;
   lng: number;
   lat: number;
@@ -34,6 +34,7 @@ const markerColors = {
   travel: "#0f766e",
   lodging: "#d97706",
   activity: "#2563eb",
+  food: "#db2777",
 };
 
 const defaultMapStyle = "mapbox://styles/mapbox/streets-v12";

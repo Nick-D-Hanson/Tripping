@@ -95,9 +95,25 @@ create table if not exists activities (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists food (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references trips(id) on delete cascade,
+  title text,
+  name text not null,
+  url text,
+  address text,
+  lat double precision,
+  lng double precision,
+  datetime timestamptz not null,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists trips_owner_id_idx on trips (owner_id);
 create index if not exists trip_members_trip_id_idx on trip_members (trip_id);
 create index if not exists trip_members_user_id_idx on trip_members (user_id);
 create index if not exists travel_segments_trip_time_idx on travel_segments (trip_id, start_datetime);
 create index if not exists lodging_trip_time_idx on lodging (trip_id, check_in);
 create index if not exists activities_trip_time_idx on activities (trip_id, datetime);
+create index if not exists food_trip_time_idx on food (trip_id, datetime);

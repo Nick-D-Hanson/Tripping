@@ -94,5 +94,20 @@ export const activities = pgTable("activities", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const food = pgTable("food", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
+  title: text("title"),
+  name: text("name").notNull(),
+  url: text("url"),
+  address: text("address"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  datetime: timestamp("datetime", { withTimezone: true }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type TripRole = (typeof tripRoleEnum.enumValues)[number];
 export type TravelSegmentType = (typeof travelSegmentTypeEnum.enumValues)[number];

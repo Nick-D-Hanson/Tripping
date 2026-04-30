@@ -1,7 +1,7 @@
 import { asc, eq, or, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { activities, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
 import { getCurrentUser, requireUser } from "@/lib/auth/server";
 import { claimEmailInvites, getTripRole, userCanOpenTrip } from "@/lib/permissions";
 
@@ -42,15 +42,16 @@ export async function getTripPageData(tripId: string) {
 
   if (!trip) notFound();
 
-  const [segments, stays, acts, members, role] = await Promise.all([
+  const [segments, stays, acts, foodItems, members, role] = await Promise.all([
     db.select().from(travelSegments).where(eq(travelSegments.tripId, tripId)).orderBy(asc(travelSegments.startDatetime)),
     db.select().from(lodging).where(eq(lodging.tripId, tripId)).orderBy(asc(lodging.checkIn)),
     db.select().from(activities).where(eq(activities.tripId, tripId)).orderBy(asc(activities.datetime)),
+    db.select().from(food).where(eq(food.tripId, tripId)).orderBy(asc(food.datetime)),
     db.select().from(tripMembers).where(eq(tripMembers.tripId, tripId)).orderBy(asc(tripMembers.createdAt)),
     getTripRole(tripId, user),
   ]);
 
-  return { trip, segments, stays, activities: acts, members, role, user };
+  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user };
 }
 
 export async function getOptionalUser() {

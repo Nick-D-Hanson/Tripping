@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { activities, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
 import { requireUser } from "@/lib/auth/server";
 import { requireTripRole } from "@/lib/permissions";
 
@@ -194,6 +194,17 @@ const activitySchema = z.object({
   notes: nullableText,
 });
 
+const foodSchema = z.object({
+  title: nullableText,
+  name: z.string().trim().min(1),
+  url: nullableUrl,
+  address: z.string().trim().min(1),
+  lat: selectedCoordinate,
+  lng: selectedCoordinate,
+  datetime: requiredDateTime,
+  notes: nullableText,
+});
+
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
@@ -215,6 +226,30 @@ export async function deleteActivity(tripId: string, activityId: string) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
   await getDb().delete(activities).where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  const input = foodSchema.parse(Object.fromEntries(formData));
+
+  if (foodId) {
+    await getDb()
+      .update(food)
+      .set({ ...input, updatedAt: new Date() })
+      .where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
+  } else {
+    await getDb().insert(food).values({ ...input, tripId });
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deleteFood(tripId: string, foodId: string) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  await getDb().delete(food).where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
   revalidatePath(`/trips/${tripId}`);
 }
 
