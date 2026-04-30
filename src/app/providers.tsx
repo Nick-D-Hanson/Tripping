@@ -9,6 +9,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const authRedirectPath = process.env.NODE_ENV === "development" ? "/auth-debug" : "/trips";
+  const googleErrorFallbackUrl = appUrl ? `${appUrl}/auth/email-otp?authFallback=google` : "/auth/email-otp?authFallback=google";
 
   return (
     <NeonAuthUIProvider
@@ -21,7 +22,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       Link={Link}
       defaultTheme="dark"
       emailOTP
-      social={{ providers: ["google"] }}
+      social={{
+        providers: ["google"],
+        signIn: async (params) =>
+          authClient.signIn.social({
+            ...params,
+            errorCallbackURL: googleErrorFallbackUrl,
+          }),
+      }}
     >
       {children}
     </NeonAuthUIProvider>
