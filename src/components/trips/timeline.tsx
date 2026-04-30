@@ -154,7 +154,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
             </summary>
             <div className="grid gap-3 border-t p-4">
               {day.items.map((item) => (
-                <div key={item.id} className="grid grid-cols-[2rem_1fr] gap-3 rounded-md border p-3">
+                <div key={item.id} className="grid grid-cols-[2rem_1fr] gap-3 rounded-md border p-3 sm:p-4">
                   <span
                     className={
                       item.type === "travel"
@@ -169,7 +169,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
                     {item.type === "travel" ? <Plane className="size-4" /> : item.type === "lodging" ? <Hotel className="size-4" /> : item.type === "activity" ? <Activity className="size-4" /> : <UtensilsCrossed className="size-4" />}
                   </span>
                   <div className="min-w-0">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">{item.title}</p>
@@ -180,7 +180,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
                         <p className="text-sm text-muted-foreground">{item.meta}</p>
                       </div>
                       {canEdit ? (
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="flex shrink-0 flex-wrap items-center gap-1">
                           {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw} /> : null}
                           {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw} /> : null}
                           {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw} /> : null}

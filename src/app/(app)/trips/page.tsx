@@ -20,7 +20,7 @@ export default async function TripsPage() {
             Plan routes, stays, activities, and collaborators from one shared workspace.
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/trips/new">
             <Plus className="size-4" />
             New trip
@@ -35,7 +35,7 @@ export default async function TripsPage() {
             <CardDescription>Create your first trip and invite people once it exists.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild>
+            <Button asChild className="w-full sm:w-auto">
               <Link href="/trips/new">
                 <Plus className="size-4" />
                 Create trip
@@ -46,7 +46,7 @@ export default async function TripsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {trips.map((trip) => (
-            <Link key={trip.id} href={`/trips/${trip.id}`}>
+            <Link key={trip.id} href={`/trips/${trip.id}`} className="block h-full">
               <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">

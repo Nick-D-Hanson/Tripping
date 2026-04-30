@@ -202,11 +202,11 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
 
   if (!token) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center rounded-lg border bg-muted p-6 text-center text-sm text-muted-foreground">
+      <div className="flex min-h-[320px] items-center justify-center rounded-lg border bg-muted p-6 text-center text-sm text-muted-foreground sm:min-h-[420px]">
         Add NEXT_PUBLIC_MAPBOX_TOKEN to render the interactive map.
       </div>
     );
   }
 
-  return <div ref={containerRef} className="h-[420px] w-full overflow-hidden rounded-lg border md:h-[560px]" />;
+  return <div ref={containerRef} className="h-[320px] w-full overflow-hidden rounded-lg border sm:h-[420px] md:h-[560px]" />;
 }

@@ -87,11 +87,11 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
     });
 
   return (
-    <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-8 sm:px-6">
+    <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-3xl font-semibold tracking-normal">{trip.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">{trip.name}</h1>
             {role ? <Badge>{role}</Badge> : null}
           </div>
           <p className="mt-2 max-w-3xl text-muted-foreground">{trip.description || "No description yet."}</p>
@@ -100,8 +100,8 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
             {fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button asChild variant="outline" className="w-full sm:w-auto">
             <Link href={`/trips/${trip.id}/members`}>
               <UsersRound className="size-4" />
               Members
@@ -109,14 +109,14 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
           </Button>
           {manageable ? (
             <>
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" className="w-full sm:w-auto">
                 <Link href={`/trips/${trip.id}/edit`}>
                   <Pencil className="size-4" />
                   Edit
                 </Link>
               </Button>
               <form action={deleteTrip.bind(null, trip.id)}>
-                <Button variant="destructive" type="submit">
+                <Button variant="destructive" type="submit" className="w-full sm:w-auto">
                   <Trash2 className="size-4" />
                   Delete
                 </Button>
@@ -129,12 +129,12 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <CardTitle>Map</CardTitle>
                 <CardDescription>Travel, stays, and activities with routed or fallback paths.</CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <SegmentDialog tripId={trip.id} canEdit={editable} />
                 <LodgingDialog tripId={trip.id} canEdit={editable} />
                 <ActivityDialog tripId={trip.id} canEdit={editable} />

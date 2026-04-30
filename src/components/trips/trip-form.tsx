@@ -20,7 +20,7 @@ export function TripForm({ trip }: TripFormProps) {
   const action = trip ? updateTrip.bind(null, trip.id) : createTrip;
 
   return (
-    <Card className="mx-auto max-w-2xl">
+    <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
         <CardTitle>{trip ? "Edit trip" : "Create a trip"}</CardTitle>
         <CardDescription>Set the high-level dates and purpose for the plan.</CardDescription>
@@ -51,7 +51,7 @@ export function TripForm({ trip }: TripFormProps) {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="submit">
+            <Button type="submit" className="w-full sm:w-auto">
               {trip ? <Save className="size-4" /> : <CalendarDays className="size-4" />}
               {trip ? "Save trip" : "Create trip"}
             </Button>

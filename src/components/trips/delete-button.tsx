@@ -6,11 +6,11 @@ import { deleteActivity, deleteFood, deleteLodging, deleteSegment, removeMember 
 import { Button } from "@/components/ui/button";
 
 type DeleteButtonProps =
-  | { kind: "segment"; tripId: string; id: string }
-  | { kind: "lodging"; tripId: string; id: string }
-  | { kind: "activity"; tripId: string; id: string }
-  | { kind: "food"; tripId: string; id: string }
-  | { kind: "member"; tripId: string; id: string };
+  | { kind: "segment"; tripId: string; id: string; className?: string }
+  | { kind: "lodging"; tripId: string; id: string; className?: string }
+  | { kind: "activity"; tripId: string; id: string; className?: string }
+  | { kind: "food"; tripId: string; id: string; className?: string }
+  | { kind: "member"; tripId: string; id: string; className?: string };
 
 export function DeleteButton(props: DeleteButtonProps) {
   const [pending, startTransition] = useTransition();
@@ -21,6 +21,7 @@ export function DeleteButton(props: DeleteButtonProps) {
       type="button"
       variant="ghost"
       size="sm"
+      className={props.className}
       disabled={pending}
       onClick={() => {
         if (!confirm(`${label} this ${props.kind}?`)) return;

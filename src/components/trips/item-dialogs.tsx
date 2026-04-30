@@ -63,7 +63,7 @@ export function SegmentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={segment ? "ghost" : "outline"} size={segment ? "sm" : "default"}>
+        <Button variant={segment ? "ghost" : "outline"} size={segment ? "sm" : "default"} className={segment ? undefined : "w-full sm:w-auto"}>
           {segment ? <Edit /> : <Plus />}
           {segment ? "Edit" : "Travel"}
         </Button>
@@ -167,7 +167,7 @@ export function LodgingDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={stay ? "ghost" : "outline"} size={stay ? "sm" : "default"}>
+        <Button variant={stay ? "ghost" : "outline"} size={stay ? "sm" : "default"} className={stay ? undefined : "w-full sm:w-auto"}>
           {stay ? <Edit /> : <Plus />}
           {stay ? "Edit" : "Lodging"}
         </Button>
@@ -239,7 +239,7 @@ export function ActivityDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={activity ? "ghost" : "outline"} size={activity ? "sm" : "default"}>
+        <Button variant={activity ? "ghost" : "outline"} size={activity ? "sm" : "default"} className={activity ? undefined : "w-full sm:w-auto"}>
           {activity ? <Edit /> : <Plus />}
           {activity ? "Edit" : "Activity"}
         </Button>
@@ -313,7 +313,7 @@ export function FoodDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={food ? "ghost" : "outline"} size={food ? "sm" : "default"}>
+        <Button variant={food ? "ghost" : "outline"} size={food ? "sm" : "default"} className={food ? undefined : "w-full sm:w-auto"}>
           {food ? <Edit /> : <Plus />}
           {food ? "Edit" : "Food"}
         </Button>

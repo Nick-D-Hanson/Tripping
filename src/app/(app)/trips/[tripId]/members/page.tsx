@@ -53,7 +53,7 @@ export default async function MembersPage({ params }: { params: Promise<{ tripId
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit">
+              <Button type="submit" className="w-full sm:w-auto">
                 <UserPlus className="size-4" />
                 Add
               </Button>
@@ -81,18 +81,18 @@ export default async function MembersPage({ params }: { params: Promise<{ tripId
                 </p>
               </div>
               {manageable && member.role !== "owner" ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <form action={updateMemberRole.bind(null, trip.id, member.id)} className="flex items-center gap-2">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                  <form action={updateMemberRole.bind(null, trip.id, member.id)} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                     <Select name="role" defaultValue={member.role}>
-                      <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="editor">editor</SelectItem>
                         <SelectItem value="viewer">viewer</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button type="submit" variant="outline" size="sm">Save</Button>
+                    <Button type="submit" variant="outline" size="sm" className="w-full sm:w-auto">Save</Button>
                   </form>
-                  <DeleteButton kind="member" tripId={trip.id} id={member.id} />
+                  <DeleteButton kind="member" tripId={trip.id} id={member.id} className="w-full justify-center sm:w-auto" />
                 </div>
               ) : null}
             </div>
