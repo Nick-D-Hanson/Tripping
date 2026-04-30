@@ -1,4 +1,4 @@
-import { Activity, Hotel, Plane } from "lucide-react";
+import { Activity, ChevronDown, Hotel, Plane } from "lucide-react";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,12 +69,18 @@ export function Timeline({ segments, stays, activities }: TimelineProps) {
     })),
   ].sort((a, b) => a.when.getTime() - b.when.getTime());
 
-  const days = items.reduce<Record<string, typeof items>>((acc, item) => {
+  const days = items.reduce<Array<{ key: string; items: typeof items }>>((acc, item) => {
     const key = dayKey(item.when);
-    acc[key] ??= [];
-    acc[key].push(item);
+    const currentDay = acc[acc.length - 1];
+
+    if (!currentDay || currentDay.key !== key) {
+      acc.push({ key, items: [item] });
+      return acc;
+    }
+
+    currentDay.items.push(item);
     return acc;
-  }, {});
+  }, []);
 
   if (items.length === 0) {
     return (
@@ -93,11 +99,17 @@ export function Timeline({ segments, stays, activities }: TimelineProps) {
         <CardTitle>Timeline</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-6">
-        {Object.entries(days).map(([key, dayItems]) => (
-          <section key={key} className="grid gap-3">
-            <h3 className="text-sm font-semibold text-muted-foreground">{dayLabel(key)}</h3>
-            <div className="grid gap-3">
-              {dayItems.map((item) => (
+        {days.map((day) => (
+          <details key={day.key} open className="group rounded-md border">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground">{dayLabel(day.key)}</h3>
+                <p className="text-xs text-muted-foreground">{day.items.length} item{day.items.length === 1 ? "" : "s"}</p>
+              </div>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="grid gap-3 border-t p-4">
+              {day.items.map((item) => (
                 <div key={item.id} className="grid grid-cols-[2rem_1fr] gap-3 rounded-md border p-3">
                   <span className="mt-1 flex size-8 items-center justify-center rounded-md bg-secondary">
                     {item.type === "travel" ? <Plane className="size-4" /> : item.type === "lodging" ? <Hotel className="size-4" /> : <Activity className="size-4" />}
@@ -114,7 +126,7 @@ export function Timeline({ segments, stays, activities }: TimelineProps) {
                 </div>
               ))}
             </div>
-          </section>
+          </details>
         ))}
       </CardContent>
     </Card>

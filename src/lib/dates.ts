@@ -19,5 +19,5 @@ export function dayKey(value: string | Date) {
 
 export function dayLabel(value: string | Date) {
   const date = typeof value === "string" ? parseISO(value) : value;
-  return format(date, "EEEE, MMMM d");
+  return format(date, "EEEE, MMMM d, yyyy");
 }
