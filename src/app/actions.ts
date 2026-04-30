@@ -104,6 +104,20 @@ export async function deleteTrip(tripId: string) {
   redirect("/trips");
 }
 
+export async function deleteTripWithConfirmation(tripId: string, expectedName: string, formData: FormData) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "owner");
+  const confirmation = z.string().trim().min(1).parse(formValue(formData, "tripNameConfirmation"));
+
+  if (confirmation !== expectedName) {
+    throw new Error("Trip name confirmation did not match.");
+  }
+
+  await getDb().delete(trips).where(eq(trips.id, tripId));
+  revalidatePath("/trips");
+  redirect("/trips");
+}
+
 const segmentSchema = z.object({
   title: nullableText,
   url: nullableUrl,

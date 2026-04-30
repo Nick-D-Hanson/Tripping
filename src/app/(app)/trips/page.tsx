@@ -1,5 +1,6 @@
 import { CalendarDays, Plus, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { TripDeleteDialog } from "@/components/trips/trip-delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,8 +47,8 @@ export default async function TripsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {trips.map((trip) => (
-            <Link key={trip.id} href={`/trips/${trip.id}`} className="block h-full">
-              <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
+            <Card key={trip.id} className="flex h-full flex-col transition hover:border-primary/60 hover:shadow-md">
+              <Link href={`/trips/${trip.id}`} className="block">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <CardTitle className="leading-6">{trip.name}</CardTitle>
@@ -65,8 +66,13 @@ export default async function TripsPage() {
                     Shared plan
                   </span>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              {trip.role === "owner" ? (
+                <CardContent className="mt-auto flex justify-end pt-0">
+                  <TripDeleteDialog tripId={trip.id} tripName={trip.name} />
+                </CardContent>
+              ) : null}
+            </Card>
           ))}
         </div>
       )}

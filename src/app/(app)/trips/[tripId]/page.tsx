@@ -1,6 +1,5 @@
-import { CalendarDays, Pencil, Settings, Trash2, UsersRound } from "lucide-react";
+import { CalendarDays, Pencil, Settings, UsersRound } from "lucide-react";
 import Link from "next/link";
-import { deleteTrip } from "@/app/actions";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { PackingList } from "@/components/trips/packing-list";
 import { Timeline } from "@/components/trips/timeline";
@@ -116,12 +115,6 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
                   Edit
                 </Link>
               </Button>
-              <form action={deleteTrip.bind(null, trip.id)}>
-                <Button variant="destructive" type="submit" className="w-full sm:w-auto">
-                  <Trash2 className="size-4" />
-                  Delete
-                </Button>
-              </form>
             </>
           ) : null}
         </div>
