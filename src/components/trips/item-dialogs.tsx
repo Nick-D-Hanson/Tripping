@@ -1,8 +1,8 @@
 "use client";
 
-import { Edit, Hotel, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
+import { Backpack, Edit, Hotel, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
-import { saveActivity, saveFood, saveLodging, saveSegment } from "@/app/actions";
+import { saveActivity, saveFood, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
 import { LocationSearch } from "@/components/trips/location-search";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -353,6 +353,61 @@ export function FoodDialog({
             <Textarea name="notes" defaultValue={food?.notes ?? ""} />
           </div>
           <div className="flex justify-end"><SubmitButton><UtensilsCrossed className="size-4" /> Save food</SubmitButton></div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function PackingItemDialog({
+  tripId,
+  canEdit,
+  item,
+}: BaseDialogProps & {
+  item?: {
+    id: string;
+    name: string;
+    quantity: string | null;
+    notes: string | null;
+    isPacked: boolean;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  if (!canEdit) return null;
+  const action = async (formData: FormData) => {
+    await savePackingItem(tripId, item?.id ?? null, formData);
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant={item ? "ghost" : "outline"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
+          {item ? <Edit /> : <Plus />}
+          {item ? "Edit" : "Item"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{item ? "Edit packing item" : "Add packing item"}</DialogTitle>
+          <DialogDescription>Keep a simple shared checklist for what still needs to make it into the bag.</DialogDescription>
+        </DialogHeader>
+        <form action={action} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Item name</Label>
+            <Input name="name" defaultValue={item?.name ?? ""} placeholder="Passport" required />
+          </div>
+          <div className="grid gap-2">
+            <Label>Quantity</Label>
+            <Input name="quantity" defaultValue={item?.quantity ?? ""} placeholder="2 pairs" />
+          </div>
+          <div className="grid gap-2">
+            <Label>Notes</Label>
+            <Textarea name="notes" defaultValue={item?.notes ?? ""} placeholder="Carry-on only" />
+          </div>
+          <div className="flex justify-end">
+            <SubmitButton><Backpack className="size-4" /> Save item</SubmitButton>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { activities, food, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
 import { requireUser } from "@/lib/auth/server";
 import { requireTripRole } from "@/lib/permissions";
 
@@ -205,6 +205,12 @@ const foodSchema = z.object({
   notes: nullableText,
 });
 
+const packingItemSchema = z.object({
+  name: z.string().trim().min(1),
+  quantity: nullableText,
+  notes: nullableText,
+});
+
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
@@ -250,6 +256,45 @@ export async function deleteFood(tripId: string, foodId: string) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
   await getDb().delete(food).where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function savePackingItem(tripId: string, itemId: string | null, formData: FormData) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  const input = packingItemSchema.parse(Object.fromEntries(formData));
+
+  if (itemId) {
+    await getDb()
+      .update(packingItems)
+      .set({ ...input, updatedAt: new Date() })
+      .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+  } else {
+    await getDb().insert(packingItems).values({
+      ...input,
+      tripId,
+      createdByUserId: user.id,
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function togglePackingItem(tripId: string, itemId: string, nextPackedState: boolean) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  await getDb()
+    .update(packingItems)
+    .set({ isPacked: nextPackedState, updatedAt: new Date() })
+    .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function deletePackingItem(tripId: string, itemId: string) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  await getDb().delete(packingItems).where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
   revalidatePath(`/trips/${tripId}`);
 }
 

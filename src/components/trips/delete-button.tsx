@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { useTransition } from "react";
-import { deleteActivity, deleteFood, deleteLodging, deleteSegment, removeMember } from "@/app/actions";
+import { deleteActivity, deleteFood, deleteLodging, deletePackingItem, deleteSegment, removeMember } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 
 type DeleteButtonProps =
@@ -10,6 +10,7 @@ type DeleteButtonProps =
   | { kind: "lodging"; tripId: string; id: string; className?: string }
   | { kind: "activity"; tripId: string; id: string; className?: string }
   | { kind: "food"; tripId: string; id: string; className?: string }
+  | { kind: "packing"; tripId: string; id: string; className?: string }
   | { kind: "member"; tripId: string; id: string; className?: string };
 
 export function DeleteButton(props: DeleteButtonProps) {
@@ -30,6 +31,7 @@ export function DeleteButton(props: DeleteButtonProps) {
           if (props.kind === "lodging") await deleteLodging(props.tripId, props.id);
           if (props.kind === "activity") await deleteActivity(props.tripId, props.id);
           if (props.kind === "food") await deleteFood(props.tripId, props.id);
+          if (props.kind === "packing") await deletePackingItem(props.tripId, props.id);
           if (props.kind === "member") await removeMember(props.tripId, props.id);
         });
       }}

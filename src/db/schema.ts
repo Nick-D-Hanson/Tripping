@@ -109,5 +109,17 @@ export const food = pgTable("food", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const packingItems = pgTable("packing_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  quantity: text("quantity"),
+  notes: text("notes"),
+  isPacked: boolean("is_packed").notNull().default(false),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type TripRole = (typeof tripRoleEnum.enumValues)[number];
 export type TravelSegmentType = (typeof travelSegmentTypeEnum.enumValues)[number];

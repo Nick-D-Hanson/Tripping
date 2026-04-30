@@ -2,6 +2,7 @@ import { CalendarDays, Pencil, Settings, Trash2, UsersRound } from "lucide-react
 import Link from "next/link";
 import { deleteTrip } from "@/app/actions";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
+import { PackingList } from "@/components/trips/packing-list";
 import { Timeline } from "@/components/trips/timeline";
 import { TripMap } from "@/components/trips/trip-map";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const { trip, segments, stays, activities, food, role } = await getTripPageData(tripId);
+  const { trip, segments, stays, activities, food, packingItems, role } = await getTripPageData(tripId);
   const editable = canEdit(role);
   const manageable = canManage(role);
 
@@ -154,6 +155,8 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         </Card>
 
         <Timeline tripId={trip.id} canEdit={editable} segments={segments} stays={stays} activities={activities} food={food} />
+
+        <PackingList tripId={trip.id} canEdit={editable} items={packingItems} />
       </div>
 
       {!editable ? (

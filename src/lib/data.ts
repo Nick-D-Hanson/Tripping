@@ -1,9 +1,10 @@
 import { asc, eq, or, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { activities, food, lodging, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
 import { getCurrentUser, requireUser } from "@/lib/auth/server";
 import { claimEmailInvites, getTripRole, userCanOpenTrip } from "@/lib/permissions";
+import { initialsFromValue } from "@/lib/utils";
 
 export async function getDashboardTrips() {
   const user = await requireUser();
@@ -42,16 +43,34 @@ export async function getTripPageData(tripId: string) {
 
   if (!trip) notFound();
 
-  const [segments, stays, acts, foodItems, members, role] = await Promise.all([
+  const [segments, stays, acts, foodItems, members, role, packing] = await Promise.all([
     db.select().from(travelSegments).where(eq(travelSegments.tripId, tripId)).orderBy(asc(travelSegments.startDatetime)),
     db.select().from(lodging).where(eq(lodging.tripId, tripId)).orderBy(asc(lodging.checkIn)),
     db.select().from(activities).where(eq(activities.tripId, tripId)).orderBy(asc(activities.datetime)),
     db.select().from(food).where(eq(food.tripId, tripId)).orderBy(asc(food.datetime)),
     db.select().from(tripMembers).where(eq(tripMembers.tripId, tripId)).orderBy(asc(tripMembers.createdAt)),
     getTripRole(tripId, user),
+    db.select().from(packingItems).where(eq(packingItems.tripId, tripId)).orderBy(asc(packingItems.createdAt)),
   ]);
 
-  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user };
+  const memberEmailByUserId = new Map(
+    members
+      .filter((member) => member.userId)
+      .map((member) => [member.userId!, member.email]),
+  );
+
+  const packingWithCreators = packing.map((item) => {
+    const creatorDisplay =
+      memberEmailByUserId.get(item.createdByUserId) ||
+      (item.createdByUserId === user.id ? user.name ?? user.email ?? user.id : item.createdByUserId);
+
+    return {
+      ...item,
+      creatorInitials: initialsFromValue(creatorDisplay),
+    };
+  });
+
+  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user, packingItems: packingWithCreators };
 }
 
 export async function getOptionalUser() {
