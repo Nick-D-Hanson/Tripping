@@ -3,13 +3,25 @@
 import { NeonAuthUIProvider } from "@neondatabase/auth-ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { authClient } from "@/lib/auth/client";
+
+function detectSafariBrowser() {
+  if (typeof navigator === "undefined") return false;
+
+  const userAgent = navigator.userAgent;
+  const isSafariEngine = /Safari/i.test(userAgent);
+  const isExcludedBrowser = /Chrome|CriOS|EdgiOS|Edg|OPiOS|OPR|Firefox|FxiOS|SamsungBrowser/i.test(userAgent);
+
+  return isSafariEngine && !isExcludedBrowser;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   const authRedirectPath = process.env.NODE_ENV === "development" ? "/auth-debug" : "/trips";
   const googleErrorFallbackUrl = appUrl ? `${appUrl}/auth/email-otp?authFallback=google` : "/auth/email-otp?authFallback=google";
+  const [isSafari] = useState(() => detectSafariBrowser());
 
   return (
     <NeonAuthUIProvider
@@ -22,14 +34,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
       Link={Link}
       defaultTheme="dark"
       emailOTP
-      social={{
-        providers: ["google"],
-        signIn: async (params) =>
-          authClient.signIn.social({
-            ...params,
-            errorCallbackURL: googleErrorFallbackUrl,
-          }),
-      }}
+      social={
+        isSafari
+          ? undefined
+          : {
+              providers: ["google"],
+              signIn: async (params) =>
+                authClient.signIn.social({
+                  ...params,
+                  errorCallbackURL: googleErrorFallbackUrl,
+                }),
+            }
+      }
     >
       {children}
     </NeonAuthUIProvider>
