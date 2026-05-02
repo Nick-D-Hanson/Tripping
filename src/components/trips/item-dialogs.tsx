@@ -53,7 +53,7 @@ function DateTimeField({
         onChange={(event) => setCurrentValue(event.target.value)}
         required={required}
       />
-      <input name={`${name}OffsetMinutes`} type="hidden" value={getOffsetMinutes(currentValue)} readOnly />
+      <input name={`${name}OffsetMinutes`} type="hidden" value={getOffsetMinutes(currentValue)} readOnly suppressHydrationWarning />
     </div>
   );
 }
