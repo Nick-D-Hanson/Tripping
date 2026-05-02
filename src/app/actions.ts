@@ -32,8 +32,8 @@ const selectedCoordinate = z
   .min(1, "Select a Mapbox location.")
   .transform(Number)
   .pipe(z.number().finite());
-const dateTimeOrNull = z.string().trim().transform((value) => (value ? new Date(value) : null));
-const requiredDateTime = z.string().min(1).transform((value) => new Date(value));
+const requiredDateTime = z.date();
+const optionalDateTime = z.date().nullable();
 
 const tripSchema = z.object({
   name: z.string().trim().min(1),
@@ -44,6 +44,61 @@ const tripSchema = z.object({
 
 function formValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "");
+}
+
+function parseDateTimeParts(value: string) {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    throw new Error(`Invalid date/time value for ${value}.`);
+  }
+
+  const [, year, month, day, hour, minute] = match;
+
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+  };
+}
+
+function parseDateTimeOffset(formData: FormData, name: string) {
+  const rawOffset = formValue(formData, `${name}OffsetMinutes`).trim();
+  const offsetMinutes = Number(rawOffset);
+
+  if (!rawOffset || !Number.isFinite(offsetMinutes)) {
+    throw new Error(`Missing timezone offset for ${name}.`);
+  }
+
+  return offsetMinutes;
+}
+
+function parseRequiredLocalDateTime(formData: FormData, name: string) {
+  const value = formValue(formData, name).trim();
+
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  const { year, month, day, hour, minute } = parseDateTimeParts(value);
+  const offsetMinutes = parseDateTimeOffset(formData, name);
+
+  return new Date(Date.UTC(year, month - 1, day, hour, minute) + offsetMinutes * 60_000);
+}
+
+function parseOptionalLocalDateTime(formData: FormData, name: string) {
+  const value = formValue(formData, name).trim();
+
+  if (!value) {
+    return null;
+  }
+
+  const { year, month, day, hour, minute } = parseDateTimeParts(value);
+  const offsetMinutes = parseDateTimeOffset(formData, name);
+
+  return new Date(Date.UTC(year, month - 1, day, hour, minute) + offsetMinutes * 60_000);
 }
 
 export async function createTrip(formData: FormData) {
@@ -131,14 +186,29 @@ const segmentSchema = z.object({
   endLat: selectedCoordinate,
   endLng: selectedCoordinate,
   startDatetime: requiredDateTime,
-  endDatetime: dateTimeOrNull,
+  endDatetime: optionalDateTime,
   notes: nullableText,
 });
 
 export async function saveSegment(tripId: string, segmentId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = segmentSchema.parse(Object.fromEntries(formData));
+  const input = segmentSchema.parse({
+    title: formValue(formData, "title"),
+    url: formValue(formData, "url"),
+    type: formValue(formData, "type"),
+    startLocationName: formValue(formData, "startLocationName"),
+    startAddress: formValue(formData, "startAddress"),
+    startLat: formValue(formData, "startLat"),
+    startLng: formValue(formData, "startLng"),
+    endLocationName: formValue(formData, "endLocationName"),
+    endAddress: formValue(formData, "endAddress"),
+    endLat: formValue(formData, "endLat"),
+    endLng: formValue(formData, "endLng"),
+    startDatetime: parseRequiredLocalDateTime(formData, "startDatetime"),
+    endDatetime: parseOptionalLocalDateTime(formData, "endDatetime"),
+    notes: formValue(formData, "notes"),
+  });
 
   if (segmentId) {
     await getDb()
@@ -167,14 +237,24 @@ const lodgingSchema = z.object({
   lat: selectedCoordinate,
   lng: selectedCoordinate,
   checkIn: requiredDateTime,
-  checkOut: dateTimeOrNull,
+  checkOut: optionalDateTime,
   notes: nullableText,
 });
 
 export async function saveLodging(tripId: string, lodgingId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = lodgingSchema.parse(Object.fromEntries(formData));
+  const input = lodgingSchema.parse({
+    title: formValue(formData, "title"),
+    name: formValue(formData, "name"),
+    url: formValue(formData, "url"),
+    address: formValue(formData, "address"),
+    lat: formValue(formData, "lat"),
+    lng: formValue(formData, "lng"),
+    checkIn: parseRequiredLocalDateTime(formData, "checkIn"),
+    checkOut: parseOptionalLocalDateTime(formData, "checkOut"),
+    notes: formValue(formData, "notes"),
+  });
 
   if (lodgingId) {
     await getDb()
@@ -228,7 +308,18 @@ const packingItemSchema = z.object({
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = activitySchema.parse(Object.fromEntries(formData));
+  const input = activitySchema.parse({
+    title: formValue(formData, "title"),
+    name: formValue(formData, "name"),
+    url: formValue(formData, "url"),
+    address: formValue(formData, "address"),
+    lat: formValue(formData, "lat"),
+    lng: formValue(formData, "lng"),
+    datetime: parseRequiredLocalDateTime(formData, "datetime"),
+    category: formValue(formData, "category"),
+    includeInRoute: formData.get("includeInRoute") ?? undefined,
+    notes: formValue(formData, "notes"),
+  });
 
   if (activityId) {
     await getDb()
@@ -252,7 +343,16 @@ export async function deleteActivity(tripId: string, activityId: string) {
 export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = foodSchema.parse(Object.fromEntries(formData));
+  const input = foodSchema.parse({
+    title: formValue(formData, "title"),
+    name: formValue(formData, "name"),
+    url: formValue(formData, "url"),
+    address: formValue(formData, "address"),
+    lat: formValue(formData, "lat"),
+    lng: formValue(formData, "lng"),
+    datetime: parseRequiredLocalDateTime(formData, "datetime"),
+    notes: formValue(formData, "notes"),
+  });
 
   if (foodId) {
     await getDb()

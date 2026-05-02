@@ -25,6 +25,39 @@ function SubmitButton({ children }: { children: React.ReactNode }) {
   );
 }
 
+function getOffsetMinutes(value: string) {
+  if (!value) return "";
+  return String(new Date(value).getTimezoneOffset());
+}
+
+function DateTimeField({
+  label,
+  name,
+  value,
+  required,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  required?: boolean;
+}) {
+  const [currentValue, setCurrentValue] = useState(value);
+
+  return (
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      <Input
+        name={name}
+        type="datetime-local"
+        value={currentValue}
+        onChange={(event) => setCurrentValue(event.target.value)}
+        required={required}
+      />
+      <input name={`${name}OffsetMinutes`} type="hidden" value={getOffsetMinutes(currentValue)} readOnly />
+    </div>
+  );
+}
+
 export function SegmentDialog({
   tripId,
   canEdit,
@@ -108,14 +141,8 @@ export function SegmentDialog({
               defaultLng={segment?.endLng}
               placeholder="Search for an arrival point"
             />
-            <div className="grid gap-2">
-              <Label>Start time</Label>
-              <Input name="startDatetime" type="datetime-local" defaultValue={toDateTimeInputValue(segment?.startDatetime)} required />
-            </div>
-            <div className="grid gap-2">
-              <Label>End time</Label>
-              <Input name="endDatetime" type="datetime-local" defaultValue={toDateTimeInputValue(segment?.endDatetime)} />
-            </div>
+            <DateTimeField label="Start time" name="startDatetime" value={toDateTimeInputValue(segment?.startDatetime)} required />
+            <DateTimeField label="End time" name="endDatetime" value={toDateTimeInputValue(segment?.endDatetime)} />
           </div>
           <div className="grid gap-2">
             <Label>Optional link</Label>
@@ -190,8 +217,8 @@ export function LodgingDialog({
             placeholder="Search for a hotel, stay, or address"
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2"><Label>Check-in</Label><Input name="checkIn" type="datetime-local" defaultValue={toDateTimeInputValue(stay?.checkIn)} required /></div>
-            <div className="grid gap-2"><Label>Check-out</Label><Input name="checkOut" type="datetime-local" defaultValue={toDateTimeInputValue(stay?.checkOut)} /></div>
+            <DateTimeField label="Check-in" name="checkIn" value={toDateTimeInputValue(stay?.checkIn)} required />
+            <DateTimeField label="Check-out" name="checkOut" value={toDateTimeInputValue(stay?.checkOut)} />
           </div>
           <div className="grid gap-2">
             <Label>Optional link</Label>
@@ -263,7 +290,7 @@ export function ActivityDialog({
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2"><Label>Category</Label><Input name="category" defaultValue={activity?.category ?? ""} /></div>
-            <div className="grid gap-2"><Label>Date and time</Label><Input name="datetime" type="datetime-local" defaultValue={toDateTimeInputValue(activity?.datetime)} required /></div>
+            <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(activity?.datetime)} required />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input name="includeInRoute" type="checkbox" defaultChecked={activity?.includeInRoute} className="size-4 rounded border-input" />
@@ -335,10 +362,7 @@ export function FoodDialog({
             defaultLng={food?.lng}
             placeholder="Search for a restaurant, cafe, or bar"
           />
-          <div className="grid gap-2">
-            <Label>Date and time</Label>
-            <Input name="datetime" type="datetime-local" defaultValue={toDateTimeInputValue(food?.datetime)} required />
-          </div>
+          <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(food?.datetime)} required />
           <div className="grid gap-2">
             <Label>Optional link</Label>
             <Input name="url" type="url" defaultValue={food?.url ?? ""} placeholder="https://example.com/menu" />
