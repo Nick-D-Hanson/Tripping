@@ -36,6 +36,7 @@ const selectedCoordinate = z
   .pipe(z.number().finite());
 const requiredDateTime = z.date();
 const optionalDateTime = z.date().nullable();
+const requiredLocationText = (message: string) => z.string().trim().min(1, message);
 
 const tripSchema = z.object({
   name: z.string().trim().min(1),
@@ -312,9 +313,9 @@ export async function deleteLodging(tripId: string, lodgingId: string) {
 
 const activitySchema = z.object({
   title: nullableText,
-  name: z.string().trim().min(1),
+  name: requiredLocationText("Select an activity location from the search results."),
   url: nullableUrl,
-  address: z.string().trim().min(1),
+  address: requiredLocationText("Select an activity location from the search results."),
   lat: selectedCoordinate,
   lng: selectedCoordinate,
   datetime: requiredDateTime,
