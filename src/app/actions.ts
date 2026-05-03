@@ -9,6 +9,8 @@ import { activities, food, lodging, packingItems, travelSegments, tripMembers, t
 import { requireUser } from "@/lib/auth/server";
 import { requireTripRole } from "@/lib/permissions";
 
+type ActionResult = { ok: true } | { ok: false; error: string };
+
 const nullableText = z.string().trim().transform((value) => (value ? value : null));
 const nullableUrl = z
   .string()
@@ -41,6 +43,19 @@ const tripSchema = z.object({
   startDate: z.string().min(1),
   endDate: z.string().min(1),
 });
+
+function validationError(error: unknown): ActionResult {
+  if (error instanceof z.ZodError) {
+    const issue = error.issues[0];
+    return { ok: false, error: issue?.message ?? "Check the highlighted fields and try again." };
+  }
+
+  if (error instanceof Error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: false, error: "Check the form fields and try again." };
+}
 
 function formValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "");
@@ -195,22 +210,30 @@ const segmentSchema = z.object({
 export async function saveSegment(tripId: string, segmentId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = segmentSchema.parse({
-    title: formValue(formData, "title"),
-    url: formValue(formData, "url"),
-    type: formValue(formData, "type"),
-    startLocationName: formValue(formData, "startLocationName"),
-    startAddress: formValue(formData, "startAddress"),
-    startLat: formValue(formData, "startLat"),
-    startLng: formValue(formData, "startLng"),
-    endLocationName: formValue(formData, "endLocationName"),
-    endAddress: formValue(formData, "endAddress"),
-    endLat: formValue(formData, "endLat"),
-    endLng: formValue(formData, "endLng"),
-    startDatetime: parseRequiredLocalDateTime(formData, "startDatetime"),
-    endDatetime: parseOptionalLocalDateTime(formData, "endDatetime"),
-    notes: formValue(formData, "notes"),
-  });
+  const input = (() => {
+    try {
+      return segmentSchema.parse({
+        title: formValue(formData, "title"),
+        url: formValue(formData, "url"),
+        type: formValue(formData, "type"),
+        startLocationName: formValue(formData, "startLocationName"),
+        startAddress: formValue(formData, "startAddress"),
+        startLat: formValue(formData, "startLat"),
+        startLng: formValue(formData, "startLng"),
+        endLocationName: formValue(formData, "endLocationName"),
+        endAddress: formValue(formData, "endAddress"),
+        endLat: formValue(formData, "endLat"),
+        endLng: formValue(formData, "endLng"),
+        startDatetime: parseRequiredLocalDateTime(formData, "startDatetime"),
+        endDatetime: parseOptionalLocalDateTime(formData, "endDatetime"),
+        notes: formValue(formData, "notes"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
 
   if (segmentId) {
     await getDb()
@@ -222,6 +245,7 @@ export async function saveSegment(tripId: string, segmentId: string | null, form
   }
 
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteSegment(tripId: string, segmentId: string) {
@@ -246,17 +270,25 @@ const lodgingSchema = z.object({
 export async function saveLodging(tripId: string, lodgingId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = lodgingSchema.parse({
-    title: formValue(formData, "title"),
-    name: formValue(formData, "name"),
-    url: formValue(formData, "url"),
-    address: formValue(formData, "address"),
-    lat: formValue(formData, "lat"),
-    lng: formValue(formData, "lng"),
-    checkIn: parseRequiredLocalDateTime(formData, "checkIn"),
-    checkOut: parseOptionalLocalDateTime(formData, "checkOut"),
-    notes: formValue(formData, "notes"),
-  });
+  const input = (() => {
+    try {
+      return lodgingSchema.parse({
+        title: formValue(formData, "title"),
+        name: formValue(formData, "name"),
+        url: formValue(formData, "url"),
+        address: formValue(formData, "address"),
+        lat: formValue(formData, "lat"),
+        lng: formValue(formData, "lng"),
+        checkIn: parseRequiredLocalDateTime(formData, "checkIn"),
+        checkOut: parseOptionalLocalDateTime(formData, "checkOut"),
+        notes: formValue(formData, "notes"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
 
   if (lodgingId) {
     await getDb()
@@ -268,6 +300,7 @@ export async function saveLodging(tripId: string, lodgingId: string | null, form
   }
 
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteLodging(tripId: string, lodgingId: string) {
@@ -310,18 +343,26 @@ const packingItemSchema = z.object({
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = activitySchema.parse({
-    title: formValue(formData, "title"),
-    name: formValue(formData, "name"),
-    url: formValue(formData, "url"),
-    address: formValue(formData, "address"),
-    lat: formValue(formData, "lat"),
-    lng: formValue(formData, "lng"),
-    datetime: parseRequiredLocalDateTime(formData, "datetime"),
-    category: formValue(formData, "category"),
-    includeInRoute: formData.get("includeInRoute") ?? undefined,
-    notes: formValue(formData, "notes"),
-  });
+  const input = (() => {
+    try {
+      return activitySchema.parse({
+        title: formValue(formData, "title"),
+        name: formValue(formData, "name"),
+        url: formValue(formData, "url"),
+        address: formValue(formData, "address"),
+        lat: formValue(formData, "lat"),
+        lng: formValue(formData, "lng"),
+        datetime: parseRequiredLocalDateTime(formData, "datetime"),
+        category: formValue(formData, "category"),
+        includeInRoute: formData.get("includeInRoute") ?? undefined,
+        notes: formValue(formData, "notes"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
 
   if (activityId) {
     await getDb()
@@ -333,6 +374,7 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
   }
 
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteActivity(tripId: string, activityId: string) {
@@ -345,16 +387,24 @@ export async function deleteActivity(tripId: string, activityId: string) {
 export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = foodSchema.parse({
-    title: formValue(formData, "title"),
-    name: formValue(formData, "name"),
-    url: formValue(formData, "url"),
-    address: formValue(formData, "address"),
-    lat: formValue(formData, "lat"),
-    lng: formValue(formData, "lng"),
-    datetime: parseRequiredLocalDateTime(formData, "datetime"),
-    notes: formValue(formData, "notes"),
-  });
+  const input = (() => {
+    try {
+      return foodSchema.parse({
+        title: formValue(formData, "title"),
+        name: formValue(formData, "name"),
+        url: formValue(formData, "url"),
+        address: formValue(formData, "address"),
+        lat: formValue(formData, "lat"),
+        lng: formValue(formData, "lng"),
+        datetime: parseRequiredLocalDateTime(formData, "datetime"),
+        notes: formValue(formData, "notes"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
 
   if (foodId) {
     await getDb()
@@ -366,6 +416,7 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
   }
 
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteFood(tripId: string, foodId: string) {
@@ -378,7 +429,15 @@ export async function deleteFood(tripId: string, foodId: string) {
 export async function savePackingItem(tripId: string, itemId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
-  const input = packingItemSchema.parse(Object.fromEntries(formData));
+  const input = (() => {
+    try {
+      return packingItemSchema.parse(Object.fromEntries(formData));
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
 
   if (itemId) {
     await getDb()
@@ -394,6 +453,7 @@ export async function savePackingItem(tripId: string, itemId: string | null, for
   }
 
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function togglePackingItem(tripId: string, itemId: string, nextPackedState: boolean) {

@@ -1,12 +1,17 @@
 "use client";
 
 import { Activity, ChevronDown, Hotel, Plane, UtensilsCrossed } from "lucide-react";
+import { useSyncExternalStore } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
+
+const emptySubscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 type TimelineProps = {
   tripId: string;
@@ -67,6 +72,19 @@ type TimelineProps = {
 };
 
 export function Timeline({ tripId, canEdit, segments, stays, activities, food }: TimelineProps) {
+  const hydrated = useSyncExternalStore(emptySubscribe, clientSnapshot, serverSnapshot);
+
+  if (!hydrated) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Timeline</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">Loading timeline...</CardContent>
+      </Card>
+    );
+  }
+
   const items = [
     ...segments.map((item) => ({
       id: `segment-${item.id}`,

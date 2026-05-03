@@ -25,6 +25,16 @@ function SubmitButton({ children }: { children: React.ReactNode }) {
   );
 }
 
+function FormError({ message }: { message: string | null }) {
+  if (!message) return null;
+
+  return (
+    <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+      {message}
+    </p>
+  );
+}
+
 function getOffsetMinutes(value: string) {
   if (!value) return "";
   return String(new Date(value).getTimezoneOffset());
@@ -82,9 +92,15 @@ export function SegmentDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
-    await saveSegment(tripId, segment?.id ?? null, formData);
+    setError(null);
+    const result = await saveSegment(tripId, segment?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -102,6 +118,7 @@ export function SegmentDialog({
           <DialogDescription>Search and select real places for maps and routes, then add an optional display title.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
+          <FormError message={error} />
           <div className="grid gap-2">
             <Label>Display title</Label>
             <Input name="title" defaultValue={segment?.title ?? ""} placeholder="Flight to Denver" />
@@ -180,9 +197,15 @@ export function LodgingDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
-    await saveLodging(tripId, stay?.id ?? null, formData);
+    setError(null);
+    const result = await saveLodging(tripId, stay?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -200,6 +223,7 @@ export function LodgingDialog({
           <DialogDescription>Stays appear as distinct pins and timeline entries.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
+          <FormError message={error} />
           <div className="grid gap-2">
             <Label>Display title</Label>
             <Input name="title" defaultValue={stay?.title ?? ""} placeholder="Mountain lodge check-in" />
@@ -252,9 +276,15 @@ export function ActivityDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
-    await saveActivity(tripId, activity?.id ?? null, formData);
+    setError(null);
+    const result = await saveActivity(tripId, activity?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -272,6 +302,7 @@ export function ActivityDialog({
           <DialogDescription>Choose whether this stop should be eligible for route optimization.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
+          <FormError message={error} />
           <div className="grid gap-2">
             <Label>Display title</Label>
             <Input name="title" defaultValue={activity?.title ?? ""} placeholder="Dinner reservation" />
@@ -326,9 +357,15 @@ export function FoodDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
-    await saveFood(tripId, food?.id ?? null, formData);
+    setError(null);
+    const result = await saveFood(tripId, food?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -346,6 +383,7 @@ export function FoodDialog({
           <DialogDescription>Restaurants, cafes, and meal stops appear as their own timeline and map items.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
+          <FormError message={error} />
           <div className="grid gap-2">
             <Label>Display title</Label>
             <Input name="title" defaultValue={food?.title ?? ""} placeholder="Brunch at Snooze" />
@@ -392,9 +430,15 @@ export function PackingItemDialog({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
-    await savePackingItem(tripId, item?.id ?? null, formData);
+    setError(null);
+    const result = await savePackingItem(tripId, item?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -412,6 +456,7 @@ export function PackingItemDialog({
           <DialogDescription>Keep a simple shared checklist for what still needs to make it into the bag.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
+          <FormError message={error} />
           <div className="grid gap-2">
             <Label>Item name</Label>
             <Input name="name" defaultValue={item?.name ?? ""} placeholder="Passport" required />
