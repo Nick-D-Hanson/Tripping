@@ -1,16 +1,35 @@
-import { CalendarDays, Plus, UsersRound } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
-import { TripDeleteDialog } from "@/components/trips/trip-delete-dialog";
-import { Badge } from "@/components/ui/badge";
+import { TripYearGroups } from "@/components/trips/trip-year-groups";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtDate } from "@/lib/dates";
 import { getDashboardTrips } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
+function tripYear(startDate: string | Date) {
+  if (typeof startDate === "string") {
+    return startDate.slice(0, 4);
+  }
+
+  return String(startDate.getFullYear());
+}
+
 export default async function TripsPage() {
   const trips = await getDashboardTrips();
+  const currentYear = String(new Date().getFullYear());
+  const tripGroups = trips.reduce<Array<{ year: string; trips: typeof trips }>>((groups, trip) => {
+    const year = tripYear(trip.startDate);
+    const currentGroup = groups[groups.length - 1];
+
+    if (!currentGroup || currentGroup.year !== year) {
+      groups.push({ year, trips: [trip] });
+      return groups;
+    }
+
+    currentGroup.trips.push(trip);
+    return groups;
+  }, []);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -45,36 +64,7 @@ export default async function TripsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {trips.map((trip) => (
-            <Card key={trip.id} className="flex h-full flex-col transition hover:border-primary/60 hover:shadow-md">
-              <Link href={`/trips/${trip.id}`} className="block">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle className="leading-6">{trip.name}</CardTitle>
-                    <Badge variant={trip.role === "owner" ? "default" : "secondary"}>{trip.role}</Badge>
-                  </div>
-                  <CardDescription className="line-clamp-2">{trip.description || "No description yet."}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <CalendarDays className="size-4" />
-                    {fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <UsersRound className="size-4" />
-                    Shared plan
-                  </span>
-                </CardContent>
-              </Link>
-              {trip.role === "owner" ? (
-                <CardContent className="mt-auto flex justify-end pt-0">
-                  <TripDeleteDialog tripId={trip.id} tripName={trip.name} />
-                </CardContent>
-              ) : null}
-            </Card>
-          ))}
-        </div>
+        <TripYearGroups groups={tripGroups} defaultExpandedYear={currentYear} />
       )}
     </main>
   );
