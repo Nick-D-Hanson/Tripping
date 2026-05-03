@@ -63,7 +63,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         label: activity.title || activity.name,
         lat: activity.lat!,
         lng: activity.lng!,
-        detail: activity.includeInRoute ? "Included in route" : activity.category ?? undefined,
+        detail: activity.includeInRoute ? "Included in route" : undefined,
       })),
     ...food
       .filter((item) => item.lat != null && item.lng != null)

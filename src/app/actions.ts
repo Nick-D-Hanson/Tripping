@@ -318,7 +318,7 @@ const activitySchema = z.object({
   lat: selectedCoordinate,
   lng: selectedCoordinate,
   datetime: requiredDateTime,
-  category: nullableText,
+  category: z.null(),
   includeInRoute: z.string().optional().transform((value) => value === "on"),
   notes: nullableText,
 });
@@ -353,7 +353,7 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
         lat: formValue(formData, "lat"),
         lng: formValue(formData, "lng"),
         datetime: parseRequiredLocalDateTime(formData, "datetime"),
-        category: formValue(formData, "category"),
+        category: null,
         includeInRoute: formData.get("includeInRoute") ?? undefined,
         notes: formValue(formData, "notes"),
       });

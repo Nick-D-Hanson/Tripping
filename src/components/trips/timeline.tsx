@@ -54,7 +54,6 @@ type TimelineProps = {
     lat: number | null;
     lng: number | null;
     datetime: Date;
-    category: string | null;
     includeInRoute: boolean;
     notes: string | null;
   }>;
@@ -112,10 +111,10 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
       id: `activity-${item.id}`,
       when: dateValue(item.datetime),
       type: "activity" as const,
-      kindLabel: item.category || "Activity",
+      kindLabel: "Activity",
       title: item.title || item.name,
       url: item.url,
-      meta: `${item.category ?? "Activity"} · ${fmtDateTime(item.datetime)}`,
+      meta: `Activity · ${fmtDateTime(item.datetime)}`,
       notes: item.notes,
       route: item.includeInRoute,
       raw: item,

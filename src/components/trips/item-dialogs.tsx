@@ -270,7 +270,6 @@ export function ActivityDialog({
     lat: number | null;
     lng: number | null;
     datetime: Date;
-    category: string | null;
     includeInRoute: boolean;
     notes: string | null;
   };
@@ -319,10 +318,7 @@ export function ActivityDialog({
             defaultLng={activity?.lng}
             placeholder="Search for a place, attraction, or address"
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2"><Label>Category</Label><Input name="category" defaultValue={activity?.category ?? ""} /></div>
-            <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(activity?.datetime)} required />
-          </div>
+          <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(activity?.datetime)} required />
           <label className="flex items-center gap-2 text-sm">
             <input name="includeInRoute" type="checkbox" defaultChecked={activity?.includeInRoute} className="size-4 rounded border-input" />
             Include in route optimization
