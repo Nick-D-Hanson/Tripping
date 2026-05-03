@@ -1,11 +1,12 @@
 "use client";
 
 import { Activity, ChevronDown, Hotel, Plane, UtensilsCrossed } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
 
@@ -72,6 +73,75 @@ type TimelineProps = {
 
 export function Timeline({ tripId, canEdit, segments, stays, activities, food }: TimelineProps) {
   const hydrated = useSyncExternalStore(emptySubscribe, clientSnapshot, serverSnapshot);
+  const [openDayKeys, setOpenDayKeys] = useState<Set<string>>(() => new Set());
+
+  const items = useMemo(
+    () => [
+      ...segments.map((item) => ({
+        id: `segment-${item.id}`,
+        when: dateValue(item.startDatetime),
+        type: "travel" as const,
+        kindLabel: item.type === "flight" ? "Flight" : "Drive",
+        title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
+        url: item.url,
+        meta: `${item.type} · ${fmtDateTime(item.startDatetime)}${item.endDatetime ? ` to ${fmtDateTime(item.endDatetime)}` : ""}`,
+        notes: item.notes,
+        raw: item,
+      })),
+      ...stays.map((item) => ({
+        id: `lodging-${item.id}`,
+        when: dateValue(item.checkIn),
+        type: "lodging" as const,
+        kindLabel: "Lodging",
+        title: item.title || item.name,
+        url: item.url,
+        meta: `Check-in ${fmtDateTime(item.checkIn)}${item.checkOut ? ` · Check-out ${fmtDateTime(item.checkOut)}` : ""}`,
+        notes: item.notes,
+        raw: item,
+      })),
+      ...activities.map((item) => ({
+        id: `activity-${item.id}`,
+        when: dateValue(item.datetime),
+        type: "activity" as const,
+        kindLabel: "Activity",
+        title: item.title || item.name,
+        url: item.url,
+        meta: `Activity · ${fmtDateTime(item.datetime)}`,
+        notes: item.notes,
+        route: item.includeInRoute,
+        raw: item,
+      })),
+      ...food.map((item) => ({
+        id: `food-${item.id}`,
+        when: dateValue(item.datetime),
+        type: "food" as const,
+        kindLabel: "Food",
+        title: item.title || item.name,
+        url: item.url,
+        meta: `Food · ${fmtDateTime(item.datetime)}`,
+        notes: item.notes,
+        raw: item,
+      })),
+    ].sort((a, b) => a.when.getTime() - b.when.getTime()),
+    [activities, food, segments, stays],
+  );
+
+  const days = useMemo(
+    () =>
+      items.reduce<Array<{ key: string; items: typeof items }>>((acc, item) => {
+        const key = dayKey(item.when);
+        const currentDay = acc[acc.length - 1];
+
+        if (!currentDay || currentDay.key !== key) {
+          acc.push({ key, items: [item] });
+          return acc;
+        }
+
+        currentDay.items.push(item);
+        return acc;
+      }, []),
+    [items],
+  );
 
   if (!hydrated) {
     return (
@@ -83,67 +153,6 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
       </Card>
     );
   }
-
-  const items = [
-    ...segments.map((item) => ({
-      id: `segment-${item.id}`,
-      when: dateValue(item.startDatetime),
-      type: "travel" as const,
-      kindLabel: item.type === "flight" ? "Flight" : "Drive",
-      title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
-      url: item.url,
-      meta: `${item.type} · ${fmtDateTime(item.startDatetime)}${item.endDatetime ? ` to ${fmtDateTime(item.endDatetime)}` : ""}`,
-      notes: item.notes,
-      raw: item,
-    })),
-    ...stays.map((item) => ({
-      id: `lodging-${item.id}`,
-      when: dateValue(item.checkIn),
-      type: "lodging" as const,
-      kindLabel: "Lodging",
-      title: item.title || item.name,
-      url: item.url,
-      meta: `Check-in ${fmtDateTime(item.checkIn)}${item.checkOut ? ` · Check-out ${fmtDateTime(item.checkOut)}` : ""}`,
-      notes: item.notes,
-      raw: item,
-    })),
-    ...activities.map((item) => ({
-      id: `activity-${item.id}`,
-      when: dateValue(item.datetime),
-      type: "activity" as const,
-      kindLabel: "Activity",
-      title: item.title || item.name,
-      url: item.url,
-      meta: `Activity · ${fmtDateTime(item.datetime)}`,
-      notes: item.notes,
-      route: item.includeInRoute,
-      raw: item,
-    })),
-    ...food.map((item) => ({
-      id: `food-${item.id}`,
-      when: dateValue(item.datetime),
-      type: "food" as const,
-      kindLabel: "Food",
-      title: item.title || item.name,
-      url: item.url,
-      meta: `Food · ${fmtDateTime(item.datetime)}`,
-      notes: item.notes,
-      raw: item,
-    })),
-  ].sort((a, b) => a.when.getTime() - b.when.getTime());
-
-  const days = items.reduce<Array<{ key: string; items: typeof items }>>((acc, item) => {
-    const key = dayKey(item.when);
-    const currentDay = acc[acc.length - 1];
-
-    if (!currentDay || currentDay.key !== key) {
-      acc.push({ key, items: [item] });
-      return acc;
-    }
-
-    currentDay.items.push(item);
-    return acc;
-  }, []);
 
   if (items.length === 0) {
     return (
@@ -159,12 +168,39 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timeline</CardTitle>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <CardTitle>Timeline</CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setOpenDayKeys(new Set(days.map((day) => day.key)))}>
+              Expand all
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setOpenDayKeys(new Set())}>
+              Collapse all
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-6">
-        {days.map((day) => (
-          <details key={day.key} open className="group rounded-md border">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        {days.map((day) => {
+          const isOpen = openDayKeys.has(day.key);
+
+          return (
+            <details key={day.key} open={isOpen} className="group rounded-md border">
+            <summary
+              className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3"
+              onClick={(event) => {
+                event.preventDefault();
+                setOpenDayKeys((current) => {
+                  const next = new Set(current);
+                  if (isOpen) {
+                    next.delete(day.key);
+                  } else {
+                    next.add(day.key);
+                  }
+                  return next;
+                });
+              }}
+            >
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground">{dayLabel(day.key)}</h3>
                 <p className="text-xs text-muted-foreground">{day.items.length} item{day.items.length === 1 ? "" : "s"}</p>
@@ -217,7 +253,8 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
               ))}
             </div>
           </details>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

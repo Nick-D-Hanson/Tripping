@@ -1,8 +1,8 @@
 "use client";
 
-import { Backpack, Edit, Hotel, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
+import { Backpack, Edit, Hotel, Lightbulb, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
-import { saveActivity, saveFood, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
+import { saveActivity, saveFood, saveIdeaBucketItem, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
 import { LocationSearch } from "@/components/trips/location-search";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,13 @@ import { toDateTimeInputValue } from "@/lib/dates";
 type BaseDialogProps = {
   tripId: string;
   canEdit: boolean;
+};
+
+type IdeaDraft = {
+  id: string;
+  description: string;
+  url: string | null;
+  notes: string | null;
 };
 
 function SubmitButton({ children }: { children: React.ReactNode }) {
@@ -182,6 +189,7 @@ export function LodgingDialog({
   tripId,
   canEdit,
   stay,
+  idea,
 }: BaseDialogProps & {
   stay?: {
     id: string;
@@ -195,6 +203,7 @@ export function LodgingDialog({
     checkOut: Date | null;
     notes: string | null;
   };
+  idea?: IdeaDraft;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,19 +223,20 @@ export function LodgingDialog({
       <DialogTrigger asChild>
         <Button variant={stay ? "ghost" : "outline"} size={stay ? "sm" : "default"} className={stay ? undefined : "w-full sm:w-auto"}>
           {stay ? <Edit /> : <Plus />}
-          {stay ? "Edit" : "Lodging"}
+          {stay ? "Edit" : idea ? "Plan" : "Lodging"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{stay ? "Edit lodging" : "Add lodging"}</DialogTitle>
+          <DialogTitle>{stay ? "Edit lodging" : idea ? "Plan housing idea" : "Add lodging"}</DialogTitle>
           <DialogDescription>Stays appear as distinct pins and timeline entries.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
+          {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
           <div className="grid gap-2">
             <Label>Display title</Label>
-            <Input name="title" defaultValue={stay?.title ?? ""} placeholder="Mountain lodge check-in" />
+            <Input name="title" defaultValue={stay?.title ?? idea?.description ?? ""} placeholder="Mountain lodge check-in" />
           </div>
           <LocationSearch
             label="Lodging location"
@@ -246,9 +256,9 @@ export function LodgingDialog({
           </div>
           <div className="grid gap-2">
             <Label>Optional link</Label>
-            <Input name="url" type="url" defaultValue={stay?.url ?? ""} placeholder="https://example.com/hotel" />
+            <Input name="url" type="url" defaultValue={stay?.url ?? idea?.url ?? ""} placeholder="https://example.com/hotel" />
           </div>
-          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={stay?.notes ?? ""} /></div>
+          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={stay?.notes ?? idea?.notes ?? ""} /></div>
           <div className="flex justify-end"><SubmitButton><Hotel className="size-4" /> Save lodging</SubmitButton></div>
         </form>
       </DialogContent>
@@ -260,6 +270,7 @@ export function ActivityDialog({
   tripId,
   canEdit,
   activity,
+  idea,
 }: BaseDialogProps & {
   activity?: {
     id: string;
@@ -273,6 +284,7 @@ export function ActivityDialog({
     includeInRoute: boolean;
     notes: string | null;
   };
+  idea?: IdeaDraft;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -292,19 +304,20 @@ export function ActivityDialog({
       <DialogTrigger asChild>
         <Button variant={activity ? "ghost" : "outline"} size={activity ? "sm" : "default"} className={activity ? undefined : "w-full sm:w-auto"}>
           {activity ? <Edit /> : <Plus />}
-          {activity ? "Edit" : "Activity"}
+          {activity ? "Edit" : idea ? "Plan" : "Activity"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{activity ? "Edit activity" : "Add activity"}</DialogTitle>
+          <DialogTitle>{activity ? "Edit activity" : idea ? "Plan activity idea" : "Add activity"}</DialogTitle>
           <DialogDescription>Choose whether this stop should be eligible for route optimization.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
+          {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
           <div className="grid gap-2">
             <Label>Display title</Label>
-            <Input name="title" defaultValue={activity?.title ?? ""} placeholder="Dinner reservation" />
+            <Input name="title" defaultValue={activity?.title ?? idea?.description ?? ""} placeholder="Dinner reservation" />
           </div>
           <LocationSearch
             label="Activity location"
@@ -325,9 +338,9 @@ export function ActivityDialog({
           </label>
           <div className="grid gap-2">
             <Label>Optional link</Label>
-            <Input name="url" type="url" defaultValue={activity?.url ?? ""} placeholder="https://example.com/tickets" />
+            <Input name="url" type="url" defaultValue={activity?.url ?? idea?.url ?? ""} placeholder="https://example.com/tickets" />
           </div>
-          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={activity?.notes ?? ""} /></div>
+          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={activity?.notes ?? idea?.notes ?? ""} /></div>
           <div className="flex justify-end"><SubmitButton><MapPin className="size-4" /> Save activity</SubmitButton></div>
         </form>
       </DialogContent>
@@ -339,6 +352,7 @@ export function FoodDialog({
   tripId,
   canEdit,
   food,
+  idea,
 }: BaseDialogProps & {
   food?: {
     id: string;
@@ -351,6 +365,7 @@ export function FoodDialog({
     datetime: Date;
     notes: string | null;
   };
+  idea?: IdeaDraft;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -370,19 +385,20 @@ export function FoodDialog({
       <DialogTrigger asChild>
         <Button variant={food ? "ghost" : "outline"} size={food ? "sm" : "default"} className={food ? undefined : "w-full sm:w-auto"}>
           {food ? <Edit /> : <Plus />}
-          {food ? "Edit" : "Food"}
+          {food ? "Edit" : idea ? "Plan" : "Food"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{food ? "Edit food stop" : "Add food stop"}</DialogTitle>
+          <DialogTitle>{food ? "Edit food stop" : idea ? "Plan food idea" : "Add food stop"}</DialogTitle>
           <DialogDescription>Restaurants, cafes, and meal stops appear as their own timeline and map items.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
+          {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
           <div className="grid gap-2">
             <Label>Display title</Label>
-            <Input name="title" defaultValue={food?.title ?? ""} placeholder="Brunch at Snooze" />
+            <Input name="title" defaultValue={food?.title ?? idea?.description ?? ""} placeholder="Brunch at Snooze" />
           </div>
           <LocationSearch
             label="Food location"
@@ -399,13 +415,86 @@ export function FoodDialog({
           <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(food?.datetime)} required />
           <div className="grid gap-2">
             <Label>Optional link</Label>
-            <Input name="url" type="url" defaultValue={food?.url ?? ""} placeholder="https://example.com/menu" />
+            <Input name="url" type="url" defaultValue={food?.url ?? idea?.url ?? ""} placeholder="https://example.com/menu" />
           </div>
           <div className="grid gap-2">
             <Label>Notes</Label>
-            <Textarea name="notes" defaultValue={food?.notes ?? ""} />
+            <Textarea name="notes" defaultValue={food?.notes ?? idea?.notes ?? ""} />
           </div>
           <div className="flex justify-end"><SubmitButton><UtensilsCrossed className="size-4" /> Save food</SubmitButton></div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function IdeaBucketItemDialog({
+  tripId,
+  canEdit,
+  item,
+}: BaseDialogProps & {
+  item?: {
+    id: string;
+    kind: "housing" | "activity" | "food";
+    description: string;
+    url: string | null;
+    notes: string | null;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!canEdit) return null;
+  const action = async (formData: FormData) => {
+    setError(null);
+    const result = await saveIdeaBucketItem(tripId, item?.id ?? null, formData);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant={item ? "ghost" : "outline"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
+          {item ? <Edit /> : <Plus />}
+          {item ? "Edit" : "Idea"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{item ? "Edit idea" : "Add idea"}</DialogTitle>
+          <DialogDescription>Capture early options without adding them to the map or timeline.</DialogDescription>
+        </DialogHeader>
+        <form action={action} className="grid gap-4">
+          <FormError message={error} />
+          <div className="grid gap-2">
+            <Label>Type</Label>
+            <Select name="kind" defaultValue={item?.kind ?? "activity"}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="housing">Housing</SelectItem>
+                <SelectItem value="activity">Activity</SelectItem>
+                <SelectItem value="food">Food</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Description</Label>
+            <Input name="description" defaultValue={item?.description ?? ""} placeholder="Beachfront stay near the old town" required />
+          </div>
+          <div className="grid gap-2">
+            <Label>Optional link</Label>
+            <Input name="url" type="url" defaultValue={item?.url ?? ""} placeholder="https://example.com" />
+          </div>
+          <div className="grid gap-2">
+            <Label>Notes</Label>
+            <Textarea name="notes" defaultValue={item?.notes ?? ""} placeholder="Why this looks promising, tradeoffs, or questions" />
+          </div>
+          <div className="flex justify-end">
+            <SubmitButton><Lightbulb className="size-4" /> Save idea</SubmitButton>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

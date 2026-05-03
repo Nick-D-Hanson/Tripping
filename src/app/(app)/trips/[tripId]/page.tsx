@@ -1,5 +1,6 @@
 import { CalendarDays, Pencil, Settings, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { IdeaBucket } from "@/components/trips/idea-bucket";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { PackingList } from "@/components/trips/packing-list";
 import { Timeline } from "@/components/trips/timeline";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const { trip, segments, stays, activities, food, packingItems, role } = await getTripPageData(tripId);
+  const { trip, segments, stays, activities, food, packingItems, ideaBucketItems, role } = await getTripPageData(tripId);
   const editable = canEdit(role);
   const manageable = canManage(role);
 
@@ -149,6 +150,8 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
         </Card>
 
         <Timeline tripId={trip.id} canEdit={editable} segments={segments} stays={stays} activities={activities} food={food} />
+
+        <IdeaBucket tripId={trip.id} canEdit={editable} items={ideaBucketItems} />
 
         <PackingList tripId={trip.id} canEdit={editable} items={packingItems} />
       </div>

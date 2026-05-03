@@ -18,6 +18,7 @@ export const travelSegmentTypeEnum = pgEnum("travel_segment_type", [
   "walk",
   "other",
 ]);
+export const ideaBucketItemKindEnum = pgEnum("idea_bucket_item_kind", ["housing", "activity", "food"]);
 
 export const trips = pgTable("trips", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -121,5 +122,18 @@ export const packingItems = pgTable("packing_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const ideaBucketItems = pgTable("idea_bucket_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
+  kind: ideaBucketItemKindEnum("kind").notNull(),
+  description: text("description").notNull(),
+  url: text("url"),
+  notes: text("notes"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type IdeaBucketItemKind = (typeof ideaBucketItemKindEnum.enumValues)[number];
 export type TripRole = (typeof tripRoleEnum.enumValues)[number];
 export type TravelSegmentType = (typeof travelSegmentTypeEnum.enumValues)[number];

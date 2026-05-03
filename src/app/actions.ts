@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { activities, food, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
 import { requireUser } from "@/lib/auth/server";
 import { requireTripRole } from "@/lib/permissions";
 
@@ -271,6 +271,7 @@ const lodgingSchema = z.object({
 export async function saveLodging(tripId: string, lodgingId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
+  const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
       return lodgingSchema.parse({
@@ -298,6 +299,10 @@ export async function saveLodging(tripId: string, lodgingId: string | null, form
       .where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
   } else {
     await getDb().insert(lodging).values({ ...input, tripId });
+  }
+
+  if (convertedIdeaId) {
+    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
   }
 
   revalidatePath(`/trips/${tripId}`);
@@ -341,9 +346,17 @@ const packingItemSchema = z.object({
   notes: nullableText,
 });
 
+const ideaBucketItemSchema = z.object({
+  kind: z.enum(["housing", "activity", "food"]),
+  description: z.string().trim().min(1),
+  url: nullableUrl,
+  notes: nullableText,
+});
+
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
+  const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
       return activitySchema.parse({
@@ -374,6 +387,10 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
     await getDb().insert(activities).values({ ...input, tripId });
   }
 
+  if (convertedIdeaId) {
+    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+  }
+
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
@@ -388,6 +405,7 @@ export async function deleteActivity(tripId: string, activityId: string) {
 export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
+  const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
       return foodSchema.parse({
@@ -414,6 +432,10 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
       .where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
   } else {
     await getDb().insert(food).values({ ...input, tripId });
+  }
+
+  if (convertedIdeaId) {
+    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
   }
 
   revalidatePath(`/trips/${tripId}`);
@@ -472,6 +494,48 @@ export async function deletePackingItem(tripId: string, itemId: string) {
   const user = await requireUser();
   await requireTripRole(tripId, user, "editor");
   await getDb().delete(packingItems).where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+  revalidatePath(`/trips/${tripId}`);
+}
+
+export async function saveIdeaBucketItem(tripId: string, itemId: string | null, formData: FormData) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  const input = (() => {
+    try {
+      return ideaBucketItemSchema.parse({
+        kind: formValue(formData, "kind"),
+        description: formValue(formData, "description"),
+        url: formValue(formData, "url"),
+        notes: formValue(formData, "notes"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
+
+  if (itemId) {
+    await getDb()
+      .update(ideaBucketItems)
+      .set({ ...input, updatedAt: new Date() })
+      .where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
+  } else {
+    await getDb().insert(ideaBucketItems).values({
+      ...input,
+      tripId,
+      createdByUserId: user.id,
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
+}
+
+export async function deleteIdeaBucketItem(tripId: string, itemId: string) {
+  const user = await requireUser();
+  await requireTripRole(tripId, user, "editor");
+  await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
   revalidatePath(`/trips/${tripId}`);
 }
 
