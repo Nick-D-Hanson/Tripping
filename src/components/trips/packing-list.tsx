@@ -1,8 +1,12 @@
-import { Check, Package2 } from "lucide-react";
+"use client";
+
+import { Check, ChevronDown, Package2 } from "lucide-react";
+import { useState } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { PackingItemDialog } from "@/components/trips/item-dialogs";
 import { TogglePackingButton } from "@/components/trips/toggle-packing-button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +26,7 @@ type PackingListProps = {
 };
 
 export function PackingList({ tripId, canEdit, items }: PackingListProps) {
+  const [expanded, setExpanded] = useState(false);
   const sortedItems = [...items].sort((a, b) => {
     if (a.isPacked !== b.isPacked) return a.isPacked ? 1 : -1;
     return a.createdAt.getTime() - b.createdAt.getTime();
@@ -39,10 +44,22 @@ export function PackingList({ tripId, canEdit, items }: PackingListProps) {
               {packedCount} of {items.length} packed
             </CardDescription>
           </div>
-          <PackingItemDialog tripId={tripId} canEdit={canEdit} />
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              <ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+              {expanded ? "Collapse" : "Expand"}
+            </Button>
+            <PackingItemDialog tripId={tripId} canEdit={canEdit} />
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      {expanded ? <CardContent className="grid gap-3">
         {sortedItems.length === 0 ? (
           <div className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
             Start a shared checklist for the trip so everyone knows what still needs packing.
@@ -90,7 +107,7 @@ export function PackingList({ tripId, canEdit, items }: PackingListProps) {
             </div>
           ))
         )}
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }

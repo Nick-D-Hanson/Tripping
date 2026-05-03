@@ -1,8 +1,12 @@
-import { Activity, Home, UtensilsCrossed } from "lucide-react";
+"use client";
+
+import { Activity, ChevronDown, Home, UtensilsCrossed } from "lucide-react";
+import { useState } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, IdeaBucketItemDialog, LodgingDialog } from "@/components/trips/item-dialogs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type IdeaBucketItem = {
@@ -47,6 +51,7 @@ function PlanButton({ tripId, canEdit, item }: { tripId: string; canEdit: boolea
 }
 
 export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
+  const [expanded, setExpanded] = useState(false);
   const sortedItems = [...items].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return (
@@ -57,10 +62,22 @@ export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
             <CardTitle>Idea Bucket</CardTitle>
             <CardDescription>{items.length} early-stage idea{items.length === 1 ? "" : "s"}</CardDescription>
           </div>
-          <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} />
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              <ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+              {expanded ? "Collapse" : "Expand"}
+            </Button>
+            <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} />
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      {expanded ? <CardContent className="grid gap-4">
         {items.length === 0 ? (
           <div className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
             Save loose housing, activity, and food ideas here before they are ready for the map or timeline.
@@ -116,7 +133,7 @@ export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
             );
           })
         )}
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }
