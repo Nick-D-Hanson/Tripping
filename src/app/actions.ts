@@ -272,7 +272,7 @@ export async function createTrip(formData: FormData) {
 
   refreshTripCore(trip.id);
   revalidatePath("/trips");
-  redirect(`/trips/${trip.id}`);
+  redirect(`/trips/${trip.id}?notice=trip-created`);
 }
 
 export async function updateTrip(tripId: string, formData: FormData) {
@@ -319,7 +319,7 @@ export async function updateTrip(tripId: string, formData: FormData) {
 
   refreshTripCore(tripId);
   revalidatePath(`/trips/${tripId}`);
-  redirect(`/trips/${tripId}`);
+  redirect(`/trips/${tripId}?notice=trip-updated`);
 }
 
 export async function deleteTrip(tripId: string) {
@@ -350,7 +350,7 @@ export async function deleteTrip(tripId: string) {
   );
   refreshTripCore(tripId);
   revalidatePath("/trips");
-  redirect("/trips");
+  redirect("/trips?notice=trip-deleted");
 }
 
 export async function deleteTripWithConfirmation(tripId: string, expectedName: string, formData: FormData) {
@@ -360,7 +360,7 @@ export async function deleteTripWithConfirmation(tripId: string, expectedName: s
   const confirmation = z.string().trim().min(1).parse(formValue(formData, "tripNameConfirmation"));
 
   if (confirmation !== expectedName) {
-    throw new Error("Trip name confirmation did not match.");
+    return { ok: false, error: "Trip name confirmation did not match." } satisfies ActionResult;
   }
 
   await logMutation(
@@ -390,7 +390,7 @@ export async function deleteTripWithConfirmation(tripId: string, expectedName: s
   );
   refreshTripCore(tripId);
   revalidatePath("/trips");
-  redirect("/trips");
+  redirect("/trips?notice=trip-deleted");
 }
 
 const segmentSchema = z
@@ -510,6 +510,7 @@ export async function deleteSegment(tripId: string, segmentId: string) {
   );
   refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 const lodgingSchema = z
@@ -627,6 +628,7 @@ export async function deleteLodging(tripId: string, lodgingId: string) {
   );
   refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 const activitySchema = z.object({
@@ -766,6 +768,7 @@ export async function deleteActivity(tripId: string, activityId: string) {
   );
   refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
@@ -865,6 +868,7 @@ export async function deleteFood(tripId: string, foodId: string) {
   );
   refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function savePackingItem(tripId: string, itemId: string | null, formData: FormData) {
@@ -958,6 +962,7 @@ export async function togglePackingItem(tripId: string, itemId: string, nextPack
 
   refreshTripPacking(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function deletePackingItem(tripId: string, itemId: string) {
@@ -986,6 +991,7 @@ export async function deletePackingItem(tripId: string, itemId: string) {
   );
   refreshTripPacking(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function saveIdeaBucketItem(tripId: string, itemId: string | null, formData: FormData) {
@@ -1075,14 +1081,26 @@ export async function deleteIdeaBucketItem(tripId: string, itemId: string) {
   );
   refreshTripIdeas(tripId);
   revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function addMember(tripId: string, formData: FormData) {
   const user = await requireUser();
   const context = await enforceMutationRateLimit("addMember", user.id);
   await requireTripRole(tripId, user, "owner");
-  const email = z.string().trim().email().transform((value) => value.toLowerCase()).parse(formValue(formData, "email"));
-  const role = z.enum(["editor", "viewer"]).parse(formValue(formData, "role"));
+  const input = (() => {
+    try {
+      return {
+        email: z.string().trim().email().transform((value) => value.toLowerCase()).parse(formValue(formData, "email")),
+        role: z.enum(["editor", "viewer"]).parse(formValue(formData, "role")),
+      };
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
+  const { email, role } = input;
 
   await logMutation(
     "addMember",
@@ -1127,13 +1145,25 @@ export async function addMember(tripId: string, formData: FormData) {
   );
 
   revalidatePath(`/trips/${tripId}/members`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function updateMemberRole(tripId: string, memberId: string, formData: FormData) {
   const user = await requireUser();
   const context = await enforceMutationRateLimit("updateMemberRole", user.id);
   await requireTripRole(tripId, user, "owner");
-  const role = z.enum(["editor", "viewer"]).parse(formValue(formData, "role"));
+  const input = (() => {
+    try {
+      return {
+        role: z.enum(["editor", "viewer"]).parse(formValue(formData, "role")),
+      };
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
+  const { role } = input;
 
   const existingMember = await getDb()
     .select({
@@ -1194,6 +1224,7 @@ export async function updateMemberRole(tripId: string, memberId: string, formDat
   );
 
   revalidatePath(`/trips/${tripId}/members`);
+  return { ok: true } satisfies ActionResult;
 }
 
 export async function removeMember(tripId: string, memberId: string) {
@@ -1257,4 +1288,5 @@ export async function removeMember(tripId: string, memberId: string) {
   );
 
   revalidatePath(`/trips/${tripId}/members`);
+  return { ok: true } satisfies ActionResult;
 }

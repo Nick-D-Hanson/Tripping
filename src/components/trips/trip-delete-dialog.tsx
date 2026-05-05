@@ -5,8 +5,10 @@ import { useMemo, useState } from "react";
 import { deleteTripWithConfirmation } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type TripDeleteDialogProps = {
   tripId: string;
@@ -16,10 +18,16 @@ type TripDeleteDialogProps = {
 export function TripDeleteDialog({ tripId, tripName }: TripDeleteDialogProps) {
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const matches = useMemo(() => confirmation.trim() === tripName, [confirmation, tripName]);
 
   const action = async (formData: FormData) => {
-    await deleteTripWithConfirmation(tripId, tripName, formData);
+    setError(null);
+    const result = await deleteTripWithConfirmation(tripId, tripName, formData);
+    if (result && !result.ok) {
+      setError(result.error);
+      return;
+    }
     setOpen(false);
   };
 
@@ -45,8 +53,9 @@ export function TripDeleteDialog({ tripId, tripName }: TripDeleteDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor={`delete-trip-${tripId}`}>Trip name</Label>
+          {error ? <Notice variant="error">{error}</Notice> : null}
+          <Field>
+            <FieldLabel htmlFor={`delete-trip-${tripId}`} required>Trip name</FieldLabel>
             <Input
               id={`delete-trip-${tripId}`}
               name="tripNameConfirmation"
@@ -56,12 +65,12 @@ export function TripDeleteDialog({ tripId, tripName }: TripDeleteDialogProps) {
               placeholder={tripName}
               required
             />
-          </div>
+          </Field>
           <div className="flex justify-end">
-            <Button type="submit" variant="destructive" className="w-full sm:w-auto" disabled={!matches}>
+            <SubmitButton variant="destructive" className="w-full sm:w-auto" disabled={!matches} pendingText="Deleting trip">
               <Trash2 className="size-4" />
               Delete trip
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </DialogContent>

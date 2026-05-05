@@ -2,7 +2,9 @@
 
 import mapboxgl, { LngLatBounds } from "mapbox-gl";
 import type { StyleSpecification } from "mapbox-gl";
+import { Info } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SectionState } from "@/components/ui/section-state";
 import { fmtDateTime } from "@/lib/dates";
 
 type Point = {
@@ -226,9 +228,13 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
 
   if (!token) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-lg border bg-muted p-6 text-center text-sm text-muted-foreground sm:min-h-[420px]">
-        Add NEXT_PUBLIC_MAPBOX_TOKEN to render the interactive map.
-      </div>
+      <SectionState
+        title="Map token missing"
+        description="Add NEXT_PUBLIC_MAPBOX_TOKEN to render the interactive trip map."
+        icon={Info}
+        variant="info"
+        className="flex min-h-[320px] items-center sm:min-h-[420px]"
+      />
     );
   }
 

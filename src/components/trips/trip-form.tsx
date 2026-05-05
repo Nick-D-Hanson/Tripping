@@ -1,9 +1,9 @@
 import { CalendarDays, Save } from "lucide-react";
 import { createTrip, updateTrip } from "@/app/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 
 type TripFormProps = {
@@ -27,34 +27,35 @@ export function TripForm({ trip }: TripFormProps) {
       </CardHeader>
       <CardContent>
         <form action={action} className="grid gap-5">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
+          <Field>
+            <FieldLabel htmlFor="name" required>Name</FieldLabel>
             <Input id="name" name="name" defaultValue={trip?.name} placeholder="Japan spring trip" required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="description">Description</Label>
+            <FieldDescription>Use the shared name people will recognize in dashboards, invites, and trip details.</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="description">Description</FieldLabel>
             <Textarea
               id="description"
               name="description"
               defaultValue={trip?.description ?? ""}
               placeholder="Who's going, what matters, and any constraints."
             />
-          </div>
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="startDate">Start date</Label>
+            <Field>
+              <FieldLabel htmlFor="startDate" required>Start date</FieldLabel>
               <Input id="startDate" name="startDate" type="date" defaultValue={trip?.startDate} required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="endDate">End date</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="endDate" required>End date</FieldLabel>
               <Input id="endDate" name="endDate" type="date" defaultValue={trip?.endDate} required />
-            </div>
+            </Field>
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="submit" className="w-full sm:w-auto">
+            <SubmitButton className="w-full sm:w-auto" pendingText={trip ? "Saving trip" : "Creating trip"}>
               {trip ? <Save className="size-4" /> : <CalendarDays className="size-4" />}
               {trip ? "Save trip" : "Create trip"}
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </CardContent>

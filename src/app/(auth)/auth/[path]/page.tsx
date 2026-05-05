@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionCardSkeleton } from "@/components/ui/loading-state";
 
 export default function AuthPathPage({
   params,
@@ -26,11 +28,20 @@ async function AuthPathContent({
 }) {
   const { path } = await params;
   const { authFallback } = await searchParams;
+  const authTitle = path === "sign-up" ? "Create your account" : path === "email-otp" ? "Check your email" : "Welcome back";
+  const authDescription =
+    path === "sign-up"
+      ? "Set up your workspace to plan routes, stays, activities, and collaborators together."
+      : path === "email-otp"
+        ? "Use the verification code from your email to continue."
+        : "Sign in to continue planning shared trips, routes, and itineraries.";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:p-6">
-      <div className="grid w-full max-w-md gap-4">
-        {path === "email-otp" && authFallback === "google" ? (
+    <AuthShell
+      title={authTitle}
+      description={authDescription}
+      notice={
+        path === "email-otp" && authFallback === "google" ? (
           <Card>
             <CardContent className="flex flex-col gap-2 pt-5 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -40,20 +51,19 @@ async function AuthPathContent({
               <p>Google sign-in did not complete successfully on this device, so we switched you to the email code flow.</p>
             </CardContent>
           </Card>
-        ) : null}
+        ) : null
+      }
+    >
         <AuthPanel path={path} />
-      </div>
-    </main>
+    </AuthShell>
   );
 }
 
 function AuthPathFallback() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:p-6">
-      <div className="grid w-full max-w-md gap-4">
-        <Card>
-          <CardContent className="pt-5 text-sm text-muted-foreground">Loading authentication...</CardContent>
-        </Card>
+      <div className="w-full max-w-md">
+        <SectionCardSkeleton lines={3} />
       </div>
     </main>
   );

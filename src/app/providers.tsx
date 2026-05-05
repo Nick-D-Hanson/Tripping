@@ -4,6 +4,7 @@ import { NeonAuthUIProvider } from "@neondatabase/auth-ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ToastProvider } from "@/components/ui/toast-provider";
 import { authClient } from "@/lib/auth/client";
 
 function detectSafariBrowser() {
@@ -47,7 +48,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             }
       }
     >
-      {children}
+      <ToastProvider>{children}</ToastProvider>
     </NeonAuthUIProvider>
   );
 }

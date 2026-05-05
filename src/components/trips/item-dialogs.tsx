@@ -2,20 +2,19 @@
 
 import { Backpack, Edit, Hotel, Lightbulb, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { saveActivity, saveFood, saveIdeaBucketItem, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
+import { actionErrorMessage } from "@/components/trips/mutation-feedback";
 import { LocationSearch } from "@/components/trips/location-search";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { useToast } from "@/components/ui/toast-provider";
 import { Textarea } from "@/components/ui/textarea";
 import { toDateTimeInputValue } from "@/lib/dates";
-
-type BaseDialogProps = {
-  tripId: string;
-  canEdit: boolean;
-};
 
 type IdeaDraft = {
   id: string;
@@ -24,13 +23,7 @@ type IdeaDraft = {
   notes: string | null;
 };
 
-function SubmitButton({ children }: { children: React.ReactNode }) {
-  return (
-    <Button type="submit" className="w-full sm:w-auto">
-      {children}
-    </Button>
-  );
-}
+type BaseDialogProps = { tripId: string; canEdit: boolean };
 
 function FormError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -61,8 +54,8 @@ function DateTimeField({
   const [currentValue, setCurrentValue] = useState(value);
 
   return (
-    <div className="grid gap-2">
-      <Label>{label}</Label>
+    <Field>
+      <FieldLabel required={required}>{label}</FieldLabel>
       <Input
         name={name}
         type="datetime-local"
@@ -71,7 +64,7 @@ function DateTimeField({
         required={required}
       />
       <input name={`${name}OffsetMinutes`} type="hidden" value={getOffsetMinutes(currentValue)} readOnly suppressHydrationWarning />
-    </div>
+    </Field>
   );
 }
 
@@ -98,23 +91,35 @@ export function SegmentDialog({
     notes: string | null;
   };
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await saveSegment(tripId, segment?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await saveSegment(tripId, segment?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: segment ? "Segment updated" : "Segment added",
+        description: "The trip map and timeline were refreshed.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={segment ? "ghost" : "outline"} size={segment ? "sm" : "default"} className={segment ? undefined : "w-full sm:w-auto"}>
+        <Button variant={segment ? "ghost" : "secondary"} size={segment ? "sm" : "default"} className={segment ? undefined : "w-full sm:w-auto"}>
           {segment ? <Edit /> : <Plus />}
           {segment ? "Edit" : "Travel"}
         </Button>
@@ -126,12 +131,12 @@ export function SegmentDialog({
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
-          <div className="grid gap-2">
-            <Label>Display title</Label>
+          <Field>
+            <FieldLabel>Display title</FieldLabel>
             <Input name="title" defaultValue={segment?.title ?? ""} placeholder="Flight to Denver" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Type</Label>
+          </Field>
+          <Field>
+            <FieldLabel required>Type</FieldLabel>
             <Select name="type" defaultValue={segment?.type === "flight" ? "flight" : "drive"}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -139,7 +144,7 @@ export function SegmentDialog({
                 <SelectItem value="flight">Flight</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <LocationSearch
               label="Start location"
@@ -168,16 +173,19 @@ export function SegmentDialog({
             <DateTimeField label="Start time" name="startDatetime" value={toDateTimeInputValue(segment?.startDatetime)} required />
             <DateTimeField label="End time" name="endDatetime" value={toDateTimeInputValue(segment?.endDatetime)} />
           </div>
-          <div className="grid gap-2">
-            <Label>Optional link</Label>
+          <Field>
+            <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={segment?.url ?? ""} placeholder="https://example.com/booking" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Notes</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
             <Textarea name="notes" defaultValue={segment?.notes ?? ""} />
-          </div>
+          </Field>
           <div className="flex justify-end">
-            <SubmitButton><Plane className="size-4" /> Save segment</SubmitButton>
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving segment">
+              <Plane className="size-4" />
+              Save segment
+            </SubmitButton>
           </div>
         </form>
       </DialogContent>
@@ -205,23 +213,35 @@ export function LodgingDialog({
   };
   idea?: IdeaDraft;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await saveLodging(tripId, stay?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await saveLodging(tripId, stay?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: stay ? "Lodging updated" : "Lodging added",
+        description: "Your stay details were saved.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={stay ? "ghost" : "outline"} size={stay ? "sm" : "default"} className={stay ? undefined : "w-full sm:w-auto"}>
+        <Button variant={stay ? "ghost" : "secondary"} size={stay ? "sm" : "default"} className={stay ? undefined : "w-full sm:w-auto"}>
           {stay ? <Edit /> : <Plus />}
           {stay ? "Edit" : idea ? "Plan" : "Lodging"}
         </Button>
@@ -234,10 +254,10 @@ export function LodgingDialog({
         <form action={action} className="grid gap-4">
           <FormError message={error} />
           {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
-          <div className="grid gap-2">
-            <Label>Display title</Label>
+          <Field>
+            <FieldLabel>Display title</FieldLabel>
             <Input name="title" defaultValue={stay?.title ?? idea?.description ?? ""} placeholder="Mountain lodge check-in" />
-          </div>
+          </Field>
           <LocationSearch
             label="Lodging location"
             addressName="address"
@@ -254,12 +274,20 @@ export function LodgingDialog({
             <DateTimeField label="Check-in" name="checkIn" value={toDateTimeInputValue(stay?.checkIn)} required />
             <DateTimeField label="Check-out" name="checkOut" value={toDateTimeInputValue(stay?.checkOut)} />
           </div>
-          <div className="grid gap-2">
-            <Label>Optional link</Label>
+          <Field>
+            <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={stay?.url ?? idea?.url ?? ""} placeholder="https://example.com/hotel" />
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
+            <Textarea name="notes" defaultValue={stay?.notes ?? idea?.notes ?? ""} />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving lodging">
+              <Hotel className="size-4" />
+              Save lodging
+            </SubmitButton>
           </div>
-          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={stay?.notes ?? idea?.notes ?? ""} /></div>
-          <div className="flex justify-end"><SubmitButton><Hotel className="size-4" /> Save lodging</SubmitButton></div>
         </form>
       </DialogContent>
     </Dialog>
@@ -286,23 +314,35 @@ export function ActivityDialog({
   };
   idea?: IdeaDraft;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await saveActivity(tripId, activity?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await saveActivity(tripId, activity?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: activity ? "Activity updated" : "Activity added",
+        description: "The itinerary was updated.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={activity ? "ghost" : "outline"} size={activity ? "sm" : "default"} className={activity ? undefined : "w-full sm:w-auto"}>
+        <Button variant={activity ? "ghost" : "secondary"} size={activity ? "sm" : "default"} className={activity ? undefined : "w-full sm:w-auto"}>
           {activity ? <Edit /> : <Plus />}
           {activity ? "Edit" : idea ? "Plan" : "Activity"}
         </Button>
@@ -315,10 +355,10 @@ export function ActivityDialog({
         <form action={action} className="grid gap-4">
           <FormError message={error} />
           {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
-          <div className="grid gap-2">
-            <Label>Display title</Label>
+          <Field>
+            <FieldLabel>Display title</FieldLabel>
             <Input name="title" defaultValue={activity?.title ?? idea?.description ?? ""} placeholder="Dinner reservation" />
-          </div>
+          </Field>
           <LocationSearch
             label="Activity location"
             addressName="address"
@@ -336,12 +376,20 @@ export function ActivityDialog({
             <input name="includeInRoute" type="checkbox" defaultChecked={activity?.includeInRoute} className="size-4 rounded border-input" />
             Include in route optimization
           </label>
-          <div className="grid gap-2">
-            <Label>Optional link</Label>
+          <Field>
+            <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={activity?.url ?? idea?.url ?? ""} placeholder="https://example.com/tickets" />
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
+            <Textarea name="notes" defaultValue={activity?.notes ?? idea?.notes ?? ""} />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving activity">
+              <MapPin className="size-4" />
+              Save activity
+            </SubmitButton>
           </div>
-          <div className="grid gap-2"><Label>Notes</Label><Textarea name="notes" defaultValue={activity?.notes ?? idea?.notes ?? ""} /></div>
-          <div className="flex justify-end"><SubmitButton><MapPin className="size-4" /> Save activity</SubmitButton></div>
         </form>
       </DialogContent>
     </Dialog>
@@ -367,23 +415,35 @@ export function FoodDialog({
   };
   idea?: IdeaDraft;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await saveFood(tripId, food?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await saveFood(tripId, food?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: food ? "Food stop updated" : "Food stop added",
+        description: "The itinerary was updated.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={food ? "ghost" : "outline"} size={food ? "sm" : "default"} className={food ? undefined : "w-full sm:w-auto"}>
+        <Button variant={food ? "ghost" : "secondary"} size={food ? "sm" : "default"} className={food ? undefined : "w-full sm:w-auto"}>
           {food ? <Edit /> : <Plus />}
           {food ? "Edit" : idea ? "Plan" : "Food"}
         </Button>
@@ -396,10 +456,10 @@ export function FoodDialog({
         <form action={action} className="grid gap-4">
           <FormError message={error} />
           {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
-          <div className="grid gap-2">
-            <Label>Display title</Label>
+          <Field>
+            <FieldLabel>Display title</FieldLabel>
             <Input name="title" defaultValue={food?.title ?? idea?.description ?? ""} placeholder="Brunch at Snooze" />
-          </div>
+          </Field>
           <LocationSearch
             label="Food location"
             addressName="address"
@@ -413,15 +473,20 @@ export function FoodDialog({
             placeholder="Search for a restaurant, cafe, or bar"
           />
           <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(food?.datetime)} required />
-          <div className="grid gap-2">
-            <Label>Optional link</Label>
+          <Field>
+            <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={food?.url ?? idea?.url ?? ""} placeholder="https://example.com/menu" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Notes</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
             <Textarea name="notes" defaultValue={food?.notes ?? idea?.notes ?? ""} />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving food">
+              <UtensilsCrossed className="size-4" />
+              Save food
+            </SubmitButton>
           </div>
-          <div className="flex justify-end"><SubmitButton><UtensilsCrossed className="size-4" /> Save food</SubmitButton></div>
         </form>
       </DialogContent>
     </Dialog>
@@ -441,23 +506,35 @@ export function IdeaBucketItemDialog({
     notes: string | null;
   };
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await saveIdeaBucketItem(tripId, item?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await saveIdeaBucketItem(tripId, item?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: item ? "Idea updated" : "Idea added",
+        description: "The idea bucket was refreshed.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={item ? "ghost" : "outline"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
+        <Button variant={item ? "ghost" : "secondary"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
           {item ? <Edit /> : <Plus />}
           {item ? "Edit" : "Idea"}
         </Button>
@@ -469,8 +546,8 @@ export function IdeaBucketItemDialog({
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
-          <div className="grid gap-2">
-            <Label>Type</Label>
+          <Field>
+            <FieldLabel required>Type</FieldLabel>
             <Select name="kind" defaultValue={item?.kind ?? "activity"}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -479,21 +556,24 @@ export function IdeaBucketItemDialog({
                 <SelectItem value="food">Food</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>Description</Label>
+          </Field>
+          <Field>
+            <FieldLabel required>Description</FieldLabel>
             <Input name="description" defaultValue={item?.description ?? ""} placeholder="Beachfront stay near the old town" required />
-          </div>
-          <div className="grid gap-2">
-            <Label>Optional link</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={item?.url ?? ""} placeholder="https://example.com" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Notes</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
             <Textarea name="notes" defaultValue={item?.notes ?? ""} placeholder="Why this looks promising, tradeoffs, or questions" />
-          </div>
+          </Field>
           <div className="flex justify-end">
-            <SubmitButton><Lightbulb className="size-4" /> Save idea</SubmitButton>
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving idea">
+              <Lightbulb className="size-4" />
+              Save idea
+            </SubmitButton>
           </div>
         </form>
       </DialogContent>
@@ -514,23 +594,35 @@ export function PackingItemDialog({
     isPacked: boolean;
   };
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!canEdit) return null;
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await savePackingItem(tripId, item?.id ?? null, formData);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await savePackingItem(tripId, item?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: item ? "Packing item updated" : "Packing item added",
+        description: "The packing list was refreshed.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
     }
-    setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={item ? "ghost" : "outline"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
+        <Button variant={item ? "ghost" : "secondary"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
           {item ? <Edit /> : <Plus />}
           {item ? "Edit" : "Item"}
         </Button>
@@ -542,20 +634,23 @@ export function PackingItemDialog({
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
-          <div className="grid gap-2">
-            <Label>Item name</Label>
+          <Field>
+            <FieldLabel required>Item name</FieldLabel>
             <Input name="name" defaultValue={item?.name ?? ""} placeholder="Passport" required />
-          </div>
-          <div className="grid gap-2">
-            <Label>Quantity</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Quantity</FieldLabel>
             <Input name="quantity" defaultValue={item?.quantity ?? ""} placeholder="2 pairs" />
-          </div>
-          <div className="grid gap-2">
-            <Label>Notes</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
             <Textarea name="notes" defaultValue={item?.notes ?? ""} placeholder="Carry-on only" />
-          </div>
+          </Field>
           <div className="flex justify-end">
-            <SubmitButton><Backpack className="size-4" /> Save item</SubmitButton>
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving item">
+              <Backpack className="size-4" />
+              Save item
+            </SubmitButton>
           </div>
         </form>
       </DialogContent>

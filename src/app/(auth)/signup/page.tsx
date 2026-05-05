@@ -1,11 +1,10 @@
+import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthPanel } from "@/components/auth/auth-panel";
 
 export default function SignupPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md">
-        <AuthPanel path="sign-up" />
-      </div>
-    </main>
+    <AuthShell title="Create your account" description="Set up your workspace to plan routes, stays, activities, and collaborators together.">
+      <AuthPanel path="sign-up" />
+    </AuthShell>
   );
 }

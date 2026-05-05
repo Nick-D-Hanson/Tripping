@@ -2,8 +2,11 @@
 
 import { Check } from "lucide-react";
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { togglePackingItem } from "@/app/actions";
+import { actionErrorMessage } from "@/components/trips/mutation-feedback";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast-provider";
 import { cn } from "@/lib/utils";
 
 type TogglePackingButtonProps = {
@@ -13,12 +16,14 @@ type TogglePackingButtonProps = {
 };
 
 export function TogglePackingButton({ tripId, id, packed }: TogglePackingButtonProps) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [pending, startTransition] = useTransition();
 
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="secondary"
       size="icon"
       disabled={pending}
       aria-pressed={packed}
@@ -29,7 +34,21 @@ export function TogglePackingButton({ tripId, id, packed }: TogglePackingButtonP
       )}
       onClick={() => {
         startTransition(async () => {
-          await togglePackingItem(tripId, id, !packed);
+          try {
+            await togglePackingItem(tripId, id, !packed);
+            router.refresh();
+            toast({
+              variant: "success",
+              title: packed ? "Marked as unpacked" : "Marked as packed",
+              description: "The packing list was updated.",
+            });
+          } catch (error) {
+            toast({
+              variant: "error",
+              title: "Unable to update item",
+              description: actionErrorMessage(error),
+            });
+          }
         });
       }}
     >

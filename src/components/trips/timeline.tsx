@@ -8,6 +8,8 @@ import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EntityRow, EntityRowActions, EntityRowBody, EntityRowHeader, EntityRowMeta, EntityRowNotes, EntityRowTitle } from "@/components/ui/entity-row";
+import { SectionState } from "@/components/ui/section-state";
 import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
 
 const emptySubscribe = () => () => {};
@@ -149,7 +151,12 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
         <CardHeader>
           <CardTitle>Timeline</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">Loading timeline...</CardContent>
+        <CardContent>
+          <SectionState
+            title="Loading timeline"
+            description="Trip items are being grouped into day-by-day itinerary sections."
+          />
+        </CardContent>
       </Card>
     );
   }
@@ -160,7 +167,13 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
         <CardHeader>
           <CardTitle>Timeline</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">Add travel, lodging, or activities to build the trip timeline.</CardContent>
+        <CardContent>
+          <SectionState
+            title="No itinerary yet"
+            description="Add travel, lodging, or activities to build the trip timeline."
+            action={canEdit ? <SegmentDialog tripId={tripId} canEdit={canEdit} /> : null}
+          />
+        </CardContent>
       </Card>
     );
   }
@@ -171,10 +184,10 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <CardTitle>Timeline</CardTitle>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setOpenDayKeys(new Set(days.map((day) => day.key)))}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setOpenDayKeys(new Set(days.map((day) => day.key)))}>
               Expand all
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setOpenDayKeys(new Set())}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setOpenDayKeys(new Set())}>
               Collapse all
             </Button>
           </div>
@@ -209,7 +222,7 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
             </summary>
             <div className="grid gap-3 border-t p-4">
               {day.items.map((item) => (
-                <div key={item.id} className="grid grid-cols-[2rem_1fr] gap-3 rounded-md border p-3 sm:p-4">
+                <EntityRow key={item.id} className="grid grid-cols-[2rem_1fr] gap-3">
                   <span
                     className={
                       item.type === "travel"
@@ -223,19 +236,19 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
                   >
                     {item.type === "travel" ? <Plane className="size-4" /> : item.type === "lodging" ? <Hotel className="size-4" /> : item.type === "activity" ? <Activity className="size-4" /> : <UtensilsCrossed className="size-4" />}
                   </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <EntityRowBody>
+                    <EntityRowHeader>
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <EntityRowTitle>
                           <p className="font-medium">{item.title}</p>
                           <Badge variant="secondary">{item.kindLabel}</Badge>
                           <ExternalLinkButton href={item.url} label={item.title} />
                           {item.type === "activity" && item.route ? <Badge variant="outline">route</Badge> : null}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{item.meta}</p>
+                        </EntityRowTitle>
+                        <EntityRowMeta>{item.meta}</EntityRowMeta>
                       </div>
                       {canEdit ? (
-                        <div className="flex shrink-0 flex-wrap items-center gap-1">
+                        <EntityRowActions className="gap-1">
                           {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw} /> : null}
                           {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw} /> : null}
                           {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw} /> : null}
@@ -244,12 +257,12 @@ export function Timeline({ tripId, canEdit, segments, stays, activities, food }:
                           {item.type === "lodging" ? <DeleteButton kind="lodging" tripId={tripId} id={item.raw.id} /> : null}
                           {item.type === "activity" ? <DeleteButton kind="activity" tripId={tripId} id={item.raw.id} /> : null}
                           {item.type === "food" ? <DeleteButton kind="food" tripId={tripId} id={item.raw.id} /> : null}
-                        </div>
+                        </EntityRowActions>
                       ) : null}
-                    </div>
-                    {item.notes ? <p className="mt-2 text-sm">{item.notes}</p> : null}
-                  </div>
-                </div>
+                    </EntityRowHeader>
+                    {item.notes ? <EntityRowNotes className="text-foreground">{item.notes}</EntityRowNotes> : null}
+                  </EntityRowBody>
+                </EntityRow>
               ))}
             </div>
           </details>

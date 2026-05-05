@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { CalendarDays, Pencil, Settings, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { IdeaBucket } from "@/components/trips/idea-bucket";
+import { tripNoticeMessage } from "@/components/trips/mutation-feedback";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { PackingList } from "@/components/trips/packing-list";
 import { Timeline } from "@/components/trips/timeline";
@@ -9,26 +10,47 @@ import { TripMap } from "@/components/trips/trip-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeaderSkeleton, SectionCardSkeleton } from "@/components/ui/loading-state";
+import { Notice } from "@/components/ui/notice";
+import { SectionState } from "@/components/ui/section-state";
 import { fmtDate } from "@/lib/dates";
 import { getTripIdeaBucketData, getTripMapData, getTripPackingData, getTripShellData, getTripTimelineData } from "@/lib/data";
 import { canEdit, canManage } from "@/lib/permissions";
 
-export default function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
+export default function TripDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ notice?: string | string[] }>;
+}) {
   return (
     <Suspense fallback={<TripDetailFallback />}>
-      <TripDetailContent params={params} />
+      <TripDetailContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function TripDetailContent({ params }: { params: Promise<{ tripId: string }> }) {
+async function TripDetailContent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ notice?: string | string[] }>;
+}) {
   const { tripId } = await params;
   const { trip, role } = await getTripShellData(tripId);
+  const noticeMessage = tripNoticeMessage((await searchParams).notice);
   const editable = canEdit(role);
   const manageable = canManage(role);
 
   return (
     <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      {noticeMessage ? (
+        <Notice variant="success">
+          {noticeMessage}
+        </Notice>
+      ) : null}
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -42,7 +64,7 @@ async function TripDetailContent({ params }: { params: Promise<{ tripId: string 
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-          <Button asChild variant="outline" className="w-full sm:w-auto">
+          <Button asChild variant="secondary" className="w-full sm:w-auto">
             <Link href={`/trips/${trip.id}/members`}>
               <UsersRound className="size-4" />
               Members
@@ -50,7 +72,7 @@ async function TripDetailContent({ params }: { params: Promise<{ tripId: string 
           </Button>
           {manageable ? (
             <>
-              <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Button asChild variant="secondary" className="w-full sm:w-auto">
                 <Link href={`/trips/${trip.id}/edit`}>
                   <Pencil className="size-4" />
                   Edit
@@ -81,9 +103,13 @@ async function TripDetailContent({ params }: { params: Promise<{ tripId: string 
 
       {!editable ? (
         <Card>
-          <CardContent className="flex items-center gap-2 pt-5 text-sm text-muted-foreground">
-            <Settings className="size-4" />
-            You have viewer access, so editing controls are hidden.
+          <CardContent className="pt-5">
+            <SectionState
+              title="Viewer access"
+              description="Editing controls are hidden because this trip is shared with you in view-only mode."
+              icon={Settings}
+              variant="info"
+            />
           </CardContent>
         </Card>
       ) : null}
@@ -94,22 +120,17 @@ async function TripDetailContent({ params }: { params: Promise<{ tripId: string 
 function TripDetailFallback() {
   return (
     <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <Card>
-        <CardContent className="pt-5 text-sm text-muted-foreground">Loading trip...</CardContent>
-      </Card>
+      <PageHeaderSkeleton withActions />
+      <SectionCardSkeleton withActions lines={1} className="min-h-[220px]" />
+      <SectionCardSkeleton lines={4} />
+      <SectionCardSkeleton lines={3} />
     </main>
   );
 }
 
-function SectionFallback({ title, description }: { title: string; description: string }) {
+function SectionFallback({ title }: { title: string; description: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">Loading...</CardContent>
-    </Card>
+    <SectionCardSkeleton withActions={title === "Map"} lines={title === "Map" ? 1 : 3} className={title === "Map" ? "min-h-[220px]" : undefined} />
   );
 }
 

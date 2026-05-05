@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Notice } from "@/components/ui/notice";
+import { SectionHeader } from "@/components/ui/section-header";
 
 type SessionResult = {
   loading: boolean;
@@ -55,8 +57,12 @@ export function AuthDebugClient() {
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Browser session probe</CardTitle>
-          <CardDescription>Direct browser call to `/api/auth/get-session`.</CardDescription>
+          <SectionHeader
+            title={<CardTitle>Browser session probe</CardTitle>}
+            description={<CardDescription>Direct browser call to `/api/auth/get-session`.</CardDescription>}
+            className="gap-2"
+            descriptionClassName="mt-0"
+          />
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           <p>
@@ -73,11 +79,14 @@ export function AuthDebugClient() {
               {JSON.stringify(sessionResult, null, 2)}
             </pre>
           </div>
+          {sessionResult.error ? (
+            <Notice variant="error">{sessionResult.error}</Notice>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <Button asChild>
               <Link href="/trips">Continue to trips</Link>
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="secondary">
               <Link href="/login">Back to login</Link>
             </Button>
           </div>

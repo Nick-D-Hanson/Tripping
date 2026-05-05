@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { AuthDebugClient } from "@/components/auth/auth-debug-client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionCardSkeleton } from "@/components/ui/loading-state";
+import { SectionHeader } from "@/components/ui/section-header";
 import { getOptionalUser } from "@/lib/data";
 
 export default function AuthDebugPage() {
@@ -25,8 +27,12 @@ async function AuthDebugContent() {
     <main className="mx-auto grid min-h-screen w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
       <Card>
         <CardHeader>
-          <CardTitle>Auth debug</CardTitle>
-          <CardDescription>Temporary mobile Safari diagnostic screen after sign-in.</CardDescription>
+          <SectionHeader
+            title={<CardTitle>Auth debug</CardTitle>}
+            description={<CardDescription>Temporary mobile Safari diagnostic screen after sign-in.</CardDescription>}
+            className="gap-2"
+            descriptionClassName="mt-0"
+          />
         </CardHeader>
         <CardContent className="grid gap-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
@@ -69,9 +75,7 @@ async function AuthDebugContent() {
 function AuthDebugFallback() {
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
-      <Card>
-        <CardContent className="pt-5 text-sm text-muted-foreground">Loading auth diagnostics...</CardContent>
-      </Card>
+      <SectionCardSkeleton lines={3} />
     </main>
   );
 }
