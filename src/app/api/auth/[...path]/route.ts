@@ -1,6 +1,6 @@
 import { authApiHandler } from "@neondatabase/auth/next/server";
-
-export const dynamic = "force-dynamic";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp, getRequestId, logError, logInfo, logWarn, timeAsync } from "@/lib/observability";
 
 type AuthContext = { params: Promise<{ path: string[] }> };
 
@@ -63,7 +63,8 @@ async function logForbiddenAuthResponse(request: Request, response: Response) {
     body = "";
   }
 
-  console.error("[auth-403]", {
+  logError("auth.forbidden", {
+    requestId: getRequestId(request.headers),
     url: request.url,
     method: request.method,
     origin: request.headers.get("origin"),
@@ -79,35 +80,84 @@ async function logForbiddenAuthResponse(request: Request, response: Response) {
   return response;
 }
 
+function buildRateLimitedResponse(request: Request, retryAfterSeconds: number) {
+  const requestId = getRequestId(request.headers);
+  const ip = getClientIp(request.headers);
+
+  logWarn("auth.rate_limited", {
+    requestId,
+    ip,
+    method: request.method,
+    url: request.url,
+    retryAfterSeconds,
+  });
+
+  return Response.json(
+    { error: "Too many authentication requests. Please wait and try again.", requestId },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfterSeconds),
+        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      },
+    },
+  );
+}
+
+async function runAuthMutation(method: string, request: Request, context: AuthContext) {
+  const requestId = getRequestId(request.headers);
+  const ip = getClientIp(request.headers);
+  const limit = checkRateLimit({
+    key: `auth:${method}:${ip}`,
+    limit: 20,
+    windowMs: 60_000,
+  });
+
+  if (!limit.allowed) {
+    return buildRateLimitedResponse(request, limit.retryAfterSeconds);
+  }
+
+  const normalizedRequest = normalizeAuthRequest(request);
+  const { durationMs, result } = await timeAsync(async () => {
+    if (method === "POST") return authApiHandler().POST(normalizedRequest, context);
+    if (method === "PUT") return authApiHandler().PUT(normalizedRequest, context);
+    if (method === "DELETE") return authApiHandler().DELETE(normalizedRequest, context);
+    return authApiHandler().PATCH(normalizedRequest, context);
+  });
+
+  logInfo("auth.request", {
+    requestId,
+    ip,
+    method,
+    url: request.url,
+    status: result.status,
+    durationMs,
+  });
+
+  return logForbiddenAuthResponse(normalizedRequest, result);
+}
+
 export function GET(request: Request, context: AuthContext) {
   if (!process.env.NEON_AUTH_BASE_URL) return missingAuthEnv();
   return authApiHandler().GET(request, context);
 }
 
-export async function POST(request: Request, context: AuthContext) {
+export function POST(request: Request, context: AuthContext) {
   if (!process.env.NEON_AUTH_BASE_URL) return missingAuthEnv();
-  const normalizedRequest = normalizeAuthRequest(request);
-  const response = await authApiHandler().POST(normalizedRequest, context);
-  return logForbiddenAuthResponse(normalizedRequest, response);
+  return runAuthMutation("POST", request, context);
 }
 
-export async function PUT(request: Request, context: AuthContext) {
+export function PUT(request: Request, context: AuthContext) {
   if (!process.env.NEON_AUTH_BASE_URL) return missingAuthEnv();
-  const normalizedRequest = normalizeAuthRequest(request);
-  const response = await authApiHandler().PUT(normalizedRequest, context);
-  return logForbiddenAuthResponse(normalizedRequest, response);
+  return runAuthMutation("PUT", request, context);
 }
 
-export async function DELETE(request: Request, context: AuthContext) {
+export function DELETE(request: Request, context: AuthContext) {
   if (!process.env.NEON_AUTH_BASE_URL) return missingAuthEnv();
-  const normalizedRequest = normalizeAuthRequest(request);
-  const response = await authApiHandler().DELETE(normalizedRequest, context);
-  return logForbiddenAuthResponse(normalizedRequest, response);
+  return runAuthMutation("DELETE", request, context);
 }
 
-export async function PATCH(request: Request, context: AuthContext) {
+export function PATCH(request: Request, context: AuthContext) {
   if (!process.env.NEON_AUTH_BASE_URL) return missingAuthEnv();
-  const normalizedRequest = normalizeAuthRequest(request);
-  const response = await authApiHandler().PATCH(normalizedRequest, context);
-  return logForbiddenAuthResponse(normalizedRequest, response);
+  return runAuthMutation("PATCH", request, context);
 }

@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   doublePrecision,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -19,6 +20,18 @@ export const travelSegmentTypeEnum = pgEnum("travel_segment_type", [
   "other",
 ]);
 export const ideaBucketItemKindEnum = pgEnum("idea_bucket_item_kind", ["housing", "activity", "food"]);
+
+export const auditLogActionEnum = pgEnum("audit_log_action", [
+  "trip_created",
+  "trip_updated",
+  "trip_deleted",
+  "member_invited",
+  "member_role_updated",
+  "member_removed",
+  "trip_item_saved",
+  "trip_item_deleted",
+  "packing_item_toggled",
+]);
 
 export const trips = pgTable("trips", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -134,6 +147,20 @@ export const ideaBucketItems = pgTable("idea_bucket_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),
+  actorUserId: text("actor_user_id").notNull(),
+  action: auditLogActionEnum("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id"),
+  requestId: text("request_id"),
+  ipAddress: text("ip_address"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type AuditLogAction = (typeof auditLogActionEnum.enumValues)[number];
 export type IdeaBucketItemKind = (typeof ideaBucketItemKindEnum.enumValues)[number];
 export type TripRole = (typeof tripRoleEnum.enumValues)[number];
 export type TravelSegmentType = (typeof travelSegmentTypeEnum.enumValues)[number];

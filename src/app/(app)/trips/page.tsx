@@ -1,11 +1,10 @@
+import { Suspense } from "react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { TripYearGroups } from "@/components/trips/trip-year-groups";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardTrips } from "@/lib/data";
-
-export const dynamic = "force-dynamic";
 
 function tripYear(startDate: string | Date) {
   if (typeof startDate === "string") {
@@ -15,7 +14,15 @@ function tripYear(startDate: string | Date) {
   return String(startDate.getFullYear());
 }
 
-export default async function TripsPage() {
+export default function TripsPage() {
+  return (
+    <Suspense fallback={<TripsPageFallback />}>
+      <TripsPageContent />
+    </Suspense>
+  );
+}
+
+async function TripsPageContent() {
   const trips = await getDashboardTrips();
   const currentYear = String(new Date().getFullYear());
   const tripGroups = trips.reduce<Array<{ year: string; trips: typeof trips }>>((groups, trip) => {
@@ -66,6 +73,22 @@ export default async function TripsPage() {
       ) : (
         <TripYearGroups groups={tripGroups} defaultExpandedYear={currentYear} />
       )}
+    </main>
+  );
+}
+
+function TripsPageFallback() {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-normal">Trips</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">Loading trips...</p>
+        </div>
+      </div>
+      <Card>
+        <CardContent className="pt-5 text-sm text-muted-foreground">Loading trips...</CardContent>
+      </Card>
     </main>
   );
 }

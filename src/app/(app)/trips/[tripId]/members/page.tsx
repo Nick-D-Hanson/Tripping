@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ArrowLeft, Crown, Mail, Shield, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { addMember, updateMemberRole } from "@/app/actions";
@@ -8,14 +9,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getTripPageData } from "@/lib/data";
+import { getTripMembersPageData } from "@/lib/data";
 import { canManage } from "@/lib/permissions";
 
-export const dynamic = "force-dynamic";
+export default function MembersPage({ params }: { params: Promise<{ tripId: string }> }) {
+  return (
+    <Suspense fallback={<MembersPageFallback />}>
+      <MembersPageContent params={params} />
+    </Suspense>
+  );
+}
 
-export default async function MembersPage({ params }: { params: Promise<{ tripId: string }> }) {
+async function MembersPageContent({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const { trip, members, role } = await getTripPageData(tripId);
+  const { trip, members, role } = await getTripMembersPageData(tripId);
   const manageable = canManage(role);
 
   return (
@@ -98,6 +105,16 @@ export default async function MembersPage({ params }: { params: Promise<{ tripId
             </div>
           ))}
         </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function MembersPageFallback() {
+  return (
+    <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-8 sm:px-6">
+      <Card>
+        <CardContent className="pt-5 text-sm text-muted-foreground">Loading collaborators...</CardContent>
       </Card>
     </main>
   );

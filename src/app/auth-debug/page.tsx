@@ -1,12 +1,24 @@
+import { Suspense } from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { notFound } from "next/navigation";
 import { AuthDebugClient } from "@/components/auth/auth-debug-client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getOptionalUser } from "@/lib/data";
 
-export const dynamic = "force-dynamic";
+export default function AuthDebugPage() {
+  return (
+    <Suspense fallback={<AuthDebugFallback />}>
+      <AuthDebugContent />
+    </Suspense>
+  );
+}
 
-export default async function AuthDebugPage() {
+async function AuthDebugContent() {
+  if (process.env.NODE_ENV !== "development") {
+    notFound();
+  }
+
   const user = await getOptionalUser();
 
   return (
@@ -50,6 +62,16 @@ export default async function AuthDebugPage() {
       </Card>
 
       <AuthDebugClient />
+    </main>
+  );
+}
+
+function AuthDebugFallback() {
+  return (
+    <main className="mx-auto grid min-h-screen w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
+      <Card>
+        <CardContent className="pt-5 text-sm text-muted-foreground">Loading auth diagnostics...</CardContent>
+      </Card>
     </main>
   );
 }

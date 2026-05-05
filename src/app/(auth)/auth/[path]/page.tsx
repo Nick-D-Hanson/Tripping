@@ -1,8 +1,23 @@
+import { Suspense } from "react";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-export default async function AuthPathPage({
+export default function AuthPathPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ path: string }>;
+  searchParams: Promise<{ authFallback?: string }>;
+}) {
+  return (
+    <Suspense fallback={<AuthPathFallback />}>
+      <AuthPathContent params={params} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AuthPathContent({
   params,
   searchParams,
 }: {
@@ -27,6 +42,18 @@ export default async function AuthPathPage({
           </Card>
         ) : null}
         <AuthPanel path={path} />
+      </div>
+    </main>
+  );
+}
+
+function AuthPathFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:p-6">
+      <div className="grid w-full max-w-md gap-4">
+        <Card>
+          <CardContent className="pt-5 text-sm text-muted-foreground">Loading authentication...</CardContent>
+        </Card>
       </div>
     </main>
   );

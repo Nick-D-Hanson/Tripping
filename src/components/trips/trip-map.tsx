@@ -76,6 +76,31 @@ function fallbackGeoJson(lines: TripMapProps["fallbackLines"]): RouteGeoJson {
   };
 }
 
+function buildPopupContent(point: Point) {
+  const wrapper = document.createElement("div");
+
+  const title = document.createElement("strong");
+  title.textContent = point.label;
+  wrapper.appendChild(title);
+
+  const kind = document.createElement("div");
+  kind.textContent = point.kind;
+  wrapper.appendChild(kind);
+
+  const detailText = point.detailDateTime
+    ? `${point.detailPrefix ? `${point.detailPrefix} ` : ""}${fmtDateTime(point.detailDateTime)}`
+    : point.detail;
+
+  if (detailText) {
+    const detail = document.createElement("small");
+    detail.textContent = detailText;
+    wrapper.appendChild(document.createElement("br"));
+    wrapper.appendChild(detail);
+  }
+
+  return wrapper;
+}
+
 export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -186,16 +211,9 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = points.map((point) => {
-      const detailText = point.detailDateTime
-        ? `${point.detailPrefix ? `${point.detailPrefix} ` : ""}${fmtDateTime(point.detailDateTime)}`
-        : point.detail;
       const marker = new mapboxgl.Marker({ color: markerColors[point.kind] })
         .setLngLat([point.lng, point.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 20 }).setHTML(
-            `<strong>${point.label}</strong><br/><span>${point.kind}</span>${detailText ? `<br/><small>${detailText}</small>` : ""}`,
-          ),
-        )
+        .setPopup(new mapboxgl.Popup({ offset: 20 }).setDOMContent(buildPopupContent(point)))
         .addTo(map);
       return marker;
     });

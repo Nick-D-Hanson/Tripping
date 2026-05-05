@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { CalendarDays, Pencil, Settings, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { IdeaBucket } from "@/components/trips/idea-bucket";
@@ -9,16 +10,111 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDate } from "@/lib/dates";
-import { getTripPageData } from "@/lib/data";
+import { getTripIdeaBucketData, getTripMapData, getTripPackingData, getTripShellData, getTripTimelineData } from "@/lib/data";
 import { canEdit, canManage } from "@/lib/permissions";
 
-export const dynamic = "force-dynamic";
+export default function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
+  return (
+    <Suspense fallback={<TripDetailFallback />}>
+      <TripDetailContent params={params} />
+    </Suspense>
+  );
+}
 
-export default async function TripDetailPage({ params }: { params: Promise<{ tripId: string }> }) {
+async function TripDetailContent({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const { trip, segments, stays, activities, food, packingItems, ideaBucketItems, role } = await getTripPageData(tripId);
+  const { trip, role } = await getTripShellData(tripId);
   const editable = canEdit(role);
   const manageable = canManage(role);
+
+  return (
+    <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">{trip.name}</h1>
+            {role ? <Badge>{role}</Badge> : null}
+          </div>
+          <p className="mt-2 max-w-3xl text-muted-foreground">{trip.description || "No description yet."}</p>
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarDays className="size-4" />
+            {fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link href={`/trips/${trip.id}/members`}>
+              <UsersRound className="size-4" />
+              Members
+            </Link>
+          </Button>
+          {manageable ? (
+            <>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href={`/trips/${trip.id}/edit`}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Link>
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="grid gap-6">
+        <Suspense fallback={<SectionFallback title="Map" description="Loading mapped trip items..." />}>
+          <TripMapSection tripId={trip.id} canEdit={editable} />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback title="Timeline" description="Loading timeline..." />}>
+          <TripTimelineSection tripId={trip.id} canEdit={editable} />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback title="Idea Bucket" description="Loading idea bucket..." />}>
+          <TripIdeaBucketSection tripId={trip.id} canEdit={editable} />
+        </Suspense>
+
+        <Suspense fallback={<SectionFallback title="Packing List" description="Loading packing list..." />}>
+          <TripPackingSection tripId={trip.id} canEdit={editable} />
+        </Suspense>
+      </div>
+
+      {!editable ? (
+        <Card>
+          <CardContent className="flex items-center gap-2 pt-5 text-sm text-muted-foreground">
+            <Settings className="size-4" />
+            You have viewer access, so editing controls are hidden.
+          </CardContent>
+        </Card>
+      ) : null}
+    </main>
+  );
+}
+
+function TripDetailFallback() {
+  return (
+    <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
+      <Card>
+        <CardContent className="pt-5 text-sm text-muted-foreground">Loading trip...</CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function SectionFallback({ title, description }: { title: string; description: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="text-sm text-muted-foreground">Loading...</CardContent>
+    </Card>
+  );
+}
+
+async function TripMapSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+  const { segments, stays, activities, food } = await getTripMapData(tripId);
 
   const points = [
     ...segments.flatMap((segment) => {
@@ -89,81 +185,45 @@ export default async function TripDetailPage({ params }: { params: Promise<{ tri
     });
 
   return (
-    <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">{trip.name}</h1>
-            {role ? <Badge>{role}</Badge> : null}
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle>Map</CardTitle>
+            <CardDescription>Travel, stays, and activities with routed or fallback paths.</CardDescription>
           </div>
-          <p className="mt-2 max-w-3xl text-muted-foreground">{trip.description || "No description yet."}</p>
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <CalendarDays className="size-4" />
-            {fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}
-          </p>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <SegmentDialog tripId={tripId} canEdit={canEdit} />
+            <LodgingDialog tripId={tripId} canEdit={canEdit} />
+            <ActivityDialog tripId={tripId} canEdit={canEdit} />
+            <FoodDialog tripId={tripId} canEdit={canEdit} />
+          </div>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-          <Button asChild variant="outline" className="w-full sm:w-auto">
-            <Link href={`/trips/${trip.id}/members`}>
-              <UsersRound className="size-4" />
-              Members
-            </Link>
-          </Button>
-          {manageable ? (
-            <>
-              <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href={`/trips/${trip.id}/edit`}>
-                  <Pencil className="size-4" />
-                  Edit
-                </Link>
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </section>
-
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <CardTitle>Map</CardTitle>
-                <CardDescription>Travel, stays, and activities with routed or fallback paths.</CardDescription>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                <SegmentDialog tripId={trip.id} canEdit={editable} />
-                <LodgingDialog tripId={trip.id} canEdit={editable} />
-                <ActivityDialog tripId={trip.id} canEdit={editable} />
-                <FoodDialog tripId={trip.id} canEdit={editable} />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <TripMap
-              tripId={trip.id}
-              token={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-              styleUrl={process.env.NEXT_PUBLIC_MAPBOX_STYLE_URL}
-              points={points}
-              fallbackLines={fallbackLines}
-            />
-          </CardContent>
-        </Card>
-
-        <Timeline tripId={trip.id} canEdit={editable} segments={segments} stays={stays} activities={activities} food={food} />
-
-        <IdeaBucket tripId={trip.id} canEdit={editable} items={ideaBucketItems} />
-
-        <PackingList tripId={trip.id} canEdit={editable} items={packingItems} />
-      </div>
-
-      {!editable ? (
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-5 text-sm text-muted-foreground">
-            <Settings className="size-4" />
-            You have viewer access, so editing controls are hidden.
-          </CardContent>
-        </Card>
-      ) : null}
-    </main>
+      </CardHeader>
+      <CardContent>
+        <TripMap
+          tripId={tripId}
+          token={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+          styleUrl={process.env.NEXT_PUBLIC_MAPBOX_STYLE_URL}
+          points={points}
+          fallbackLines={fallbackLines}
+        />
+      </CardContent>
+    </Card>
   );
+}
+
+async function TripTimelineSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+  const { segments, stays, activities, food } = await getTripTimelineData(tripId);
+  return <Timeline tripId={tripId} canEdit={canEdit} segments={segments} stays={stays} activities={activities} food={food} />;
+}
+
+async function TripIdeaBucketSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+  const items = await getTripIdeaBucketData(tripId);
+  return <IdeaBucket tripId={tripId} canEdit={canEdit} items={items} />;
+}
+
+async function TripPackingSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+  const items = await getTripPackingData(tripId);
+  return <PackingList tripId={tripId} canEdit={canEdit} items={items} />;
 }

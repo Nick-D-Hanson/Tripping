@@ -1,13 +1,18 @@
 "use server";
 
 import { and, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
+import { recordAuditEvent } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/server";
+import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripPackingTag } from "@/lib/cache-tags";
+import { getClientIp, getRequestId, logInfo, timeAsync } from "@/lib/observability";
 import { requireTripRole } from "@/lib/permissions";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -38,12 +43,17 @@ const requiredDateTime = z.date();
 const optionalDateTime = z.date().nullable();
 const requiredLocationText = (message: string) => z.string().trim().min(1, message);
 
-const tripSchema = z.object({
-  name: z.string().trim().min(1),
-  description: nullableText,
-  startDate: z.string().min(1),
-  endDate: z.string().min(1),
-});
+const tripSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    description: nullableText,
+    startDate: z.string().min(1),
+    endDate: z.string().min(1),
+  })
+  .refine((value) => value.endDate >= value.startDate, {
+    message: "Trip end date must be on or after the start date.",
+    path: ["endDate"],
+  });
 
 function validationError(error: unknown): ActionResult {
   if (error instanceof z.ZodError) {
@@ -60,6 +70,89 @@ function validationError(error: unknown): ActionResult {
 
 function formValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "");
+}
+
+async function enforceMutationRateLimit(actionName: string, actorId: string) {
+  const requestHeaders = await headers();
+  const identity = `${actorId}:${getClientIp(requestHeaders)}`;
+  const limit = checkRateLimit({
+    key: `action:${actionName}:${identity}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
+
+  if (!limit.allowed) {
+    throw new Error("Too many write requests. Please wait a moment and try again.");
+  }
+
+  return {
+    requestId: getRequestId(requestHeaders),
+    ip: getClientIp(requestHeaders),
+  };
+}
+
+async function logMutation(actionName: string, payload: Record<string, unknown>, fn: () => Promise<void>) {
+  const { durationMs } = await timeAsync(fn);
+  logInfo("mutation.success", {
+    actionName,
+    durationMs,
+    ...payload,
+  });
+}
+
+function refreshTripCore(tripId: string) {
+  updateTag(tripCoreTag(tripId));
+}
+
+function refreshTripItinerary(tripId: string) {
+  updateTag(tripItineraryTag(tripId));
+}
+
+function refreshTripPacking(tripId: string) {
+  updateTag(tripPackingTag(tripId));
+}
+
+function refreshTripIdeas(tripId: string) {
+  updateTag(tripIdeasTag(tripId));
+}
+
+async function auditMutation(input: {
+  tripId?: string | null;
+  actorUserId: string;
+  action:
+    | "trip_created"
+    | "trip_updated"
+    | "trip_deleted"
+    | "member_invited"
+    | "member_role_updated"
+    | "member_removed"
+    | "trip_item_saved"
+    | "trip_item_deleted"
+    | "packing_item_toggled";
+  targetType: string;
+  targetId?: string | null;
+  requestId: string;
+  ipAddress: string;
+  metadata?: Record<string, unknown>;
+}) {
+  await recordAuditEvent({
+    tripId: input.tripId,
+    actorUserId: input.actorUserId,
+    action: input.action,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    requestId: input.requestId,
+    ipAddress: input.ipAddress,
+    metadata: input.metadata,
+  });
+}
+
+async function requireEditorMutationContext(actionName: string, tripId: string, minimum: "editor" | "owner" = "editor") {
+  const user = await requireUser();
+  const context = await enforceMutationRateLimit(actionName, user.id);
+  await requireTripRole(tripId, user, minimum);
+
+  return { user, context };
 }
 
 function parseDateTimeParts(value: string) {
@@ -121,6 +214,7 @@ function parseOptionalLocalDateTime(formData: FormData, name: string) {
 
 export async function createTrip(formData: FormData) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("createTrip", user.id);
   const input = tripSchema.parse({
     name: formValue(formData, "name"),
     description: formValue(formData, "description"),
@@ -128,30 +222,62 @@ export async function createTrip(formData: FormData) {
     endDate: formValue(formData, "endDate"),
   });
 
-  const [trip] = await getDb()
-    .insert(trips)
-    .values({
-      ownerId: user.id,
-      name: input.name,
-      description: input.description,
-      startDate: input.startDate,
-      endDate: input.endDate,
-    })
-    .returning({ id: trips.id });
+  const [trip] = await timeAsync(async () =>
+    getDb()
+      .insert(trips)
+      .values({
+        ownerId: user.id,
+        name: input.name,
+        description: input.description,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      })
+      .returning({ id: trips.id }),
+  ).then(async ({ durationMs, result }) => {
+    const createdTrip = result[0];
 
-  await getDb().insert(tripMembers).values({
-    tripId: trip.id,
-    userId: user.id,
-    email: user.email ?? null,
-    role: "owner",
+    await getDb().insert(tripMembers).values({
+      tripId: createdTrip.id,
+      userId: user.id,
+      email: user.email ?? null,
+      role: "owner",
+    });
+
+    logInfo("mutation.success", {
+      actionName: "createTrip",
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId: createdTrip.id,
+      durationMs,
+    });
+
+    await auditMutation({
+      tripId: createdTrip.id,
+      actorUserId: user.id,
+      action: "trip_created",
+      targetType: "trip",
+      targetId: createdTrip.id,
+      requestId: context.requestId,
+      ipAddress: context.ip,
+      metadata: {
+        name: input.name,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      },
+    });
+
+    return [createdTrip];
   });
 
+  refreshTripCore(trip.id);
   revalidatePath("/trips");
   redirect(`/trips/${trip.id}`);
 }
 
 export async function updateTrip(tripId: string, formData: FormData) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("updateTrip", user.id);
   await requireTripRole(tripId, user, "owner");
   const input = tripSchema.parse({
     name: formValue(formData, "name"),
@@ -160,25 +286,76 @@ export async function updateTrip(tripId: string, formData: FormData) {
     endDate: formValue(formData, "endDate"),
   });
 
-  await getDb()
-    .update(trips)
-    .set({ ...input, updatedAt: new Date() })
-    .where(eq(trips.id, tripId));
+  await logMutation(
+    "updateTrip",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+    },
+    async () => {
+      await getDb()
+        .update(trips)
+        .set({ ...input, updatedAt: new Date() })
+        .where(eq(trips.id, tripId));
 
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_updated",
+        targetType: "trip",
+        targetId: tripId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          name: input.name,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+      });
+    },
+  );
+
+  refreshTripCore(tripId);
   revalidatePath(`/trips/${tripId}`);
   redirect(`/trips/${tripId}`);
 }
 
 export async function deleteTrip(tripId: string) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("deleteTrip", user.id);
   await requireTripRole(tripId, user, "owner");
-  await getDb().delete(trips).where(eq(trips.id, tripId));
+  await logMutation(
+    "deleteTrip",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+    },
+    async () => {
+      await getDb().delete(trips).where(eq(trips.id, tripId));
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_deleted",
+        targetType: "trip",
+        targetId: tripId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripCore(tripId);
   revalidatePath("/trips");
   redirect("/trips");
 }
 
 export async function deleteTripWithConfirmation(tripId: string, expectedName: string, formData: FormData) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("deleteTripWithConfirmation", user.id);
   await requireTripRole(tripId, user, "owner");
   const confirmation = z.string().trim().min(1).parse(formValue(formData, "tripNameConfirmation"));
 
@@ -186,31 +363,60 @@ export async function deleteTripWithConfirmation(tripId: string, expectedName: s
     throw new Error("Trip name confirmation did not match.");
   }
 
-  await getDb().delete(trips).where(eq(trips.id, tripId));
+  await logMutation(
+    "deleteTripWithConfirmation",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+    },
+    async () => {
+      await getDb().delete(trips).where(eq(trips.id, tripId));
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_deleted",
+        targetType: "trip",
+        targetId: tripId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          confirmationMatched: true,
+        },
+      });
+    },
+  );
+  refreshTripCore(tripId);
   revalidatePath("/trips");
   redirect("/trips");
 }
 
-const segmentSchema = z.object({
-  title: nullableText,
-  url: nullableUrl,
-  type: z.enum(["flight", "drive"]),
-  startLocationName: z.string().trim().min(1),
-  startAddress: z.string().trim().min(1),
-  startLat: selectedCoordinate,
-  startLng: selectedCoordinate,
-  endLocationName: z.string().trim().min(1),
-  endAddress: z.string().trim().min(1),
-  endLat: selectedCoordinate,
-  endLng: selectedCoordinate,
-  startDatetime: requiredDateTime,
-  endDatetime: optionalDateTime,
-  notes: nullableText,
-});
+const segmentSchema = z
+  .object({
+    title: nullableText,
+    url: nullableUrl,
+    type: z.enum(["flight", "drive"]),
+    startLocationName: z.string().trim().min(1),
+    startAddress: z.string().trim().min(1),
+    startLat: selectedCoordinate,
+    startLng: selectedCoordinate,
+    endLocationName: z.string().trim().min(1),
+    endAddress: z.string().trim().min(1),
+    endLat: selectedCoordinate,
+    endLng: selectedCoordinate,
+    startDatetime: requiredDateTime,
+    endDatetime: optionalDateTime,
+    notes: nullableText,
+  })
+  .refine((value) => !value.endDatetime || value.endDatetime >= value.startDatetime, {
+    message: "Segment end time must be after the start time.",
+    path: ["endDatetime"],
+  });
 
 export async function saveSegment(tripId: string, segmentId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("saveSegment", tripId);
   const input = (() => {
     try {
       return segmentSchema.parse({
@@ -236,41 +442,95 @@ export async function saveSegment(tripId: string, segmentId: string | null, form
 
   if ("ok" in input) return input;
 
-  if (segmentId) {
-    await getDb()
-      .update(travelSegments)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(travelSegments.id, segmentId), eq(travelSegments.tripId, tripId)));
-  } else {
-    await getDb().insert(travelSegments).values({ ...input, tripId });
-  }
+  await logMutation(
+    "saveSegment",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      segmentId,
+    },
+    async () => {
+      if (segmentId) {
+        await getDb()
+          .update(travelSegments)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(travelSegments.id, segmentId), eq(travelSegments.tripId, tripId)));
+      } else {
+        await getDb().insert(travelSegments).values({ ...input, tripId });
+      }
 
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "travel_segment",
+        targetId: segmentId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: segmentId ? "update" : "create",
+          type: input.type,
+          startLocationName: input.startLocationName,
+          endLocationName: input.endLocationName,
+        },
+      });
+    },
+  );
+
+  refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteSegment(tripId: string, segmentId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(travelSegments).where(and(eq(travelSegments.id, segmentId), eq(travelSegments.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deleteSegment", tripId);
+  await logMutation(
+    "deleteSegment",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      segmentId,
+    },
+    async () => {
+      await getDb().delete(travelSegments).where(and(eq(travelSegments.id, segmentId), eq(travelSegments.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "travel_segment",
+        targetId: segmentId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
-const lodgingSchema = z.object({
-  title: nullableText,
-  name: z.string().trim().min(1),
-  url: nullableUrl,
-  address: z.string().trim().min(1),
-  lat: selectedCoordinate,
-  lng: selectedCoordinate,
-  checkIn: requiredDateTime,
-  checkOut: optionalDateTime,
-  notes: nullableText,
-});
+const lodgingSchema = z
+  .object({
+    title: nullableText,
+    name: z.string().trim().min(1),
+    url: nullableUrl,
+    address: z.string().trim().min(1),
+    lat: selectedCoordinate,
+    lng: selectedCoordinate,
+    checkIn: requiredDateTime,
+    checkOut: optionalDateTime,
+    notes: nullableText,
+  })
+  .refine((value) => !value.checkOut || value.checkOut >= value.checkIn, {
+    message: "Check-out must be after check-in.",
+    path: ["checkOut"],
+  });
 
 export async function saveLodging(tripId: string, lodgingId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("saveLodging", tripId);
   const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
@@ -292,27 +552,80 @@ export async function saveLodging(tripId: string, lodgingId: string | null, form
 
   if ("ok" in input) return input;
 
-  if (lodgingId) {
-    await getDb()
-      .update(lodging)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
-  } else {
-    await getDb().insert(lodging).values({ ...input, tripId });
-  }
+  await logMutation(
+    "saveLodging",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      lodgingId,
+      convertedIdeaId: convertedIdeaId || null,
+    },
+    async () => {
+      if (lodgingId) {
+        await getDb()
+          .update(lodging)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
+      } else {
+        await getDb().insert(lodging).values({ ...input, tripId });
+      }
 
+      if (convertedIdeaId) {
+        await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+      }
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "lodging",
+        targetId: lodgingId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: lodgingId ? "update" : "create",
+          name: input.name,
+          convertedIdeaId: convertedIdeaId || null,
+        },
+      });
+    },
+  );
+
+  refreshTripItinerary(tripId);
   if (convertedIdeaId) {
-    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+    refreshTripIdeas(tripId);
   }
-
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteLodging(tripId: string, lodgingId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(lodging).where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deleteLodging", tripId);
+  await logMutation(
+    "deleteLodging",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      lodgingId,
+    },
+    async () => {
+      await getDb().delete(lodging).where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "lodging",
+        targetId: lodgingId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -354,8 +667,7 @@ const ideaBucketItemSchema = z.object({
 });
 
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("saveActivity", tripId);
   const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
@@ -378,33 +690,86 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
 
   if ("ok" in input) return input;
 
-  if (activityId) {
-    await getDb()
-      .update(activities)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
-  } else {
-    await getDb().insert(activities).values({ ...input, tripId });
-  }
+  await logMutation(
+    "saveActivity",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      activityId,
+      convertedIdeaId: convertedIdeaId || null,
+    },
+    async () => {
+      if (activityId) {
+        await getDb()
+          .update(activities)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
+      } else {
+        await getDb().insert(activities).values({ ...input, tripId });
+      }
 
+      if (convertedIdeaId) {
+        await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+      }
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "activity",
+        targetId: activityId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: activityId ? "update" : "create",
+          name: input.name,
+          includeInRoute: input.includeInRoute,
+          convertedIdeaId: convertedIdeaId || null,
+        },
+      });
+    },
+  );
+
+  refreshTripItinerary(tripId);
   if (convertedIdeaId) {
-    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+    refreshTripIdeas(tripId);
   }
-
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteActivity(tripId: string, activityId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(activities).where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deleteActivity", tripId);
+  await logMutation(
+    "deleteActivity",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      activityId,
+    },
+    async () => {
+      await getDb().delete(activities).where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "activity",
+        targetId: activityId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function saveFood(tripId: string, foodId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("saveFood", tripId);
   const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();
   const input = (() => {
     try {
@@ -425,33 +790,85 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
 
   if ("ok" in input) return input;
 
-  if (foodId) {
-    await getDb()
-      .update(food)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
-  } else {
-    await getDb().insert(food).values({ ...input, tripId });
-  }
+  await logMutation(
+    "saveFood",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      foodId,
+      convertedIdeaId: convertedIdeaId || null,
+    },
+    async () => {
+      if (foodId) {
+        await getDb()
+          .update(food)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
+      } else {
+        await getDb().insert(food).values({ ...input, tripId });
+      }
 
+      if (convertedIdeaId) {
+        await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+      }
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "food",
+        targetId: foodId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: foodId ? "update" : "create",
+          name: input.name,
+          convertedIdeaId: convertedIdeaId || null,
+        },
+      });
+    },
+  );
+
+  refreshTripItinerary(tripId);
   if (convertedIdeaId) {
-    await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
+    refreshTripIdeas(tripId);
   }
-
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteFood(tripId: string, foodId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(food).where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deleteFood", tripId);
+  await logMutation(
+    "deleteFood",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      foodId,
+    },
+    async () => {
+      await getDb().delete(food).where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "food",
+        targetId: foodId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripItinerary(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function savePackingItem(tripId: string, itemId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("savePackingItem", tripId);
   const input = (() => {
     try {
       return packingItemSchema.parse(Object.fromEntries(formData));
@@ -462,44 +879,117 @@ export async function savePackingItem(tripId: string, itemId: string | null, for
 
   if ("ok" in input) return input;
 
-  if (itemId) {
-    await getDb()
-      .update(packingItems)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
-  } else {
-    await getDb().insert(packingItems).values({
-      ...input,
+  await logMutation(
+    "savePackingItem",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
       tripId,
-      createdByUserId: user.id,
-    });
-  }
+      itemId,
+    },
+    async () => {
+      if (itemId) {
+        await getDb()
+          .update(packingItems)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+      } else {
+        await getDb().insert(packingItems).values({
+          ...input,
+          tripId,
+          createdByUserId: user.id,
+        });
+      }
 
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "packing_item",
+        targetId: itemId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: itemId ? "update" : "create",
+          name: input.name,
+        },
+      });
+    },
+  );
+
+  refreshTripPacking(tripId);
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function togglePackingItem(tripId: string, itemId: string, nextPackedState: boolean) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb()
-    .update(packingItems)
-    .set({ isPacked: nextPackedState, updatedAt: new Date() })
-    .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("togglePackingItem", tripId);
+  await logMutation(
+    "togglePackingItem",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      itemId,
+      nextPackedState,
+    },
+    async () => {
+      await getDb()
+        .update(packingItems)
+        .set({ isPacked: nextPackedState, updatedAt: new Date() })
+        .where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
 
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "packing_item_toggled",
+        targetType: "packing_item",
+        targetId: itemId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          nextPackedState,
+        },
+      });
+    },
+  );
+
+  refreshTripPacking(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function deletePackingItem(tripId: string, itemId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(packingItems).where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deletePackingItem", tripId);
+  await logMutation(
+    "deletePackingItem",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      itemId,
+    },
+    async () => {
+      await getDb().delete(packingItems).where(and(eq(packingItems.id, itemId), eq(packingItems.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "packing_item",
+        targetId: itemId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripPacking(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function saveIdeaBucketItem(tripId: string, itemId: string | null, formData: FormData) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
+  const { user, context } = await requireEditorMutationContext("saveIdeaBucketItem", tripId);
   const input = (() => {
     try {
       return ideaBucketItemSchema.parse({
@@ -515,74 +1005,256 @@ export async function saveIdeaBucketItem(tripId: string, itemId: string | null, 
 
   if ("ok" in input) return input;
 
-  if (itemId) {
-    await getDb()
-      .update(ideaBucketItems)
-      .set({ ...input, updatedAt: new Date() })
-      .where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
-  } else {
-    await getDb().insert(ideaBucketItems).values({
-      ...input,
+  await logMutation(
+    "saveIdeaBucketItem",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
       tripId,
-      createdByUserId: user.id,
-    });
-  }
+      itemId,
+    },
+    async () => {
+      if (itemId) {
+        await getDb()
+          .update(ideaBucketItems)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
+      } else {
+        await getDb().insert(ideaBucketItems).values({
+          ...input,
+          tripId,
+          createdByUserId: user.id,
+        });
+      }
 
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "idea_bucket_item",
+        targetId: itemId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: itemId ? "update" : "create",
+          kind: input.kind,
+        },
+      });
+    },
+  );
+
+  refreshTripIdeas(tripId);
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }
 
 export async function deleteIdeaBucketItem(tripId: string, itemId: string) {
-  const user = await requireUser();
-  await requireTripRole(tripId, user, "editor");
-  await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
+  const { user, context } = await requireEditorMutationContext("deleteIdeaBucketItem", tripId);
+  await logMutation(
+    "deleteIdeaBucketItem",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      itemId,
+    },
+    async () => {
+      await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "idea_bucket_item",
+        targetId: itemId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripIdeas(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function addMember(tripId: string, formData: FormData) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("addMember", user.id);
   await requireTripRole(tripId, user, "owner");
-  const email = z.string().trim().email().parse(formValue(formData, "email"));
+  const email = z.string().trim().email().transform((value) => value.toLowerCase()).parse(formValue(formData, "email"));
   const role = z.enum(["editor", "viewer"]).parse(formValue(formData, "role"));
 
-  const existing = await getDb()
-    .select({ id: tripMembers.id })
-    .from(tripMembers)
-    .where(and(eq(tripMembers.tripId, tripId), sql`lower(${tripMembers.email}) = lower(${email})`))
-    .limit(1);
+  await logMutation(
+    "addMember",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      targetEmail: email,
+    },
+    async () => {
+      const existing = await getDb()
+        .select({ id: tripMembers.id })
+        .from(tripMembers)
+        .where(and(eq(tripMembers.tripId, tripId), sql`lower(${tripMembers.email}) = lower(${email})`))
+        .limit(1);
 
-  if (existing[0]) {
-    await getDb()
-      .update(tripMembers)
-      .set({ role, updatedAt: new Date() })
-      .where(eq(tripMembers.id, existing[0].id));
-  } else {
-    await getDb().insert(tripMembers).values({ tripId, email, role });
-  }
+      if (existing[0]) {
+        await getDb()
+          .update(tripMembers)
+          .set({ role, updatedAt: new Date() })
+          .where(eq(tripMembers.id, existing[0].id));
+      } else {
+        await getDb().insert(tripMembers).values({ tripId, email, role });
+      }
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "member_invited",
+        targetType: "trip_member",
+        targetId: existing[0]?.id ?? email,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          email,
+          role,
+          updatedExistingMember: Boolean(existing[0]),
+        },
+      });
+    },
+  );
 
   revalidatePath(`/trips/${tripId}/members`);
 }
 
 export async function updateMemberRole(tripId: string, memberId: string, formData: FormData) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("updateMemberRole", user.id);
   await requireTripRole(tripId, user, "owner");
   const role = z.enum(["editor", "viewer"]).parse(formValue(formData, "role"));
 
-  await getDb()
-    .update(tripMembers)
-    .set({ role, updatedAt: new Date() })
-    .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)));
+  const existingMember = await getDb()
+    .select({
+      id: tripMembers.id,
+      userId: tripMembers.userId,
+      role: tripMembers.role,
+      email: tripMembers.email,
+    })
+    .from(tripMembers)
+    .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)))
+    .limit(1);
+
+  const member = existingMember[0];
+
+  if (!member) {
+    throw new Error("Member not found.");
+  }
+
+  if (member.role === "owner") {
+    throw new Error("Owner access cannot be changed from this screen.");
+  }
+
+  if (member.userId === user.id) {
+    throw new Error("You cannot change your own membership role.");
+  }
+
+  await logMutation(
+    "updateMemberRole",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      memberId,
+      role,
+    },
+    async () => {
+      await getDb()
+        .update(tripMembers)
+        .set({ role, updatedAt: new Date() })
+        .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)));
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "member_role_updated",
+        targetType: "trip_member",
+        targetId: memberId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          email: member.email,
+          previousRole: member.role,
+          nextRole: role,
+        },
+      });
+    },
+  );
 
   revalidatePath(`/trips/${tripId}/members`);
 }
 
 export async function removeMember(tripId: string, memberId: string) {
   const user = await requireUser();
+  const context = await enforceMutationRateLimit("removeMember", user.id);
   await requireTripRole(tripId, user, "owner");
 
-  await getDb()
-    .delete(tripMembers)
-    .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)));
+  const existingMember = await getDb()
+    .select({
+      id: tripMembers.id,
+      userId: tripMembers.userId,
+      role: tripMembers.role,
+      email: tripMembers.email,
+    })
+    .from(tripMembers)
+    .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)))
+    .limit(1);
+
+  const member = existingMember[0];
+
+  if (!member) {
+    throw new Error("Member not found.");
+  }
+
+  if (member.role === "owner") {
+    throw new Error("The owner membership cannot be removed.");
+  }
+
+  if (member.userId === user.id) {
+    throw new Error("You cannot remove your own membership.");
+  }
+
+  await logMutation(
+    "removeMember",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      memberId,
+    },
+    async () => {
+      await getDb()
+        .delete(tripMembers)
+        .where(and(eq(tripMembers.id, memberId), eq(tripMembers.tripId, tripId)));
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "member_removed",
+        targetType: "trip_member",
+        targetId: memberId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          email: member.email,
+          removedRole: member.role,
+        },
+      });
+    },
+  );
 
   revalidatePath(`/trips/${tripId}/members`);
 }

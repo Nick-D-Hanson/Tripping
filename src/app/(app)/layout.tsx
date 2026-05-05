@@ -1,11 +1,18 @@
+import { Suspense } from "react";
 import { UserButton } from "@neondatabase/auth-ui";
 import { Map } from "lucide-react";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/server";
 
-export const dynamic = "force-dynamic";
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <AuthenticatedAppLayout>{children}</AuthenticatedAppLayout>
+    </Suspense>
+  );
+}
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+async function AuthenticatedAppLayout({ children }: { children: React.ReactNode }) {
   await requireUser();
 
   return (
