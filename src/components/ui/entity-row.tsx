@@ -1,12 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function EntityRow({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-md border p-3 sm:p-4", className)} {...props} />;
-}
+export const EntityRow = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("rounded-md border p-3 sm:p-4", className)} {...props} />
+  ),
+);
+EntityRow.displayName = "EntityRow";
 
 export function EntityRowBody({
   className,

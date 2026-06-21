@@ -7,6 +7,7 @@ import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/comp
 import { PackingList } from "@/components/trips/packing-list";
 import { Timeline } from "@/components/trips/timeline";
 import { TripMap } from "@/components/trips/trip-map";
+import { TripPlannerDragProvider } from "@/components/trips/trip-planner-dnd";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,13 +89,20 @@ async function TripDetailContent({
           <TripMapSection tripId={trip.id} canEdit={editable} />
         </Suspense>
 
-        <Suspense fallback={<SectionFallback title="Timeline" description="Loading timeline..." />}>
-          <TripTimelineSection tripId={trip.id} canEdit={editable} />
-        </Suspense>
+        <TripPlannerDragProvider tripId={trip.id} canEdit={editable}>
+          <Suspense fallback={<SectionFallback title="Timeline" description="Loading timeline..." />}>
+            <TripTimelineSection
+              tripId={trip.id}
+              canEdit={editable}
+              tripStartDate={trip.startDate}
+              tripEndDate={trip.endDate}
+            />
+          </Suspense>
 
-        <Suspense fallback={<SectionFallback title="Idea Bucket" description="Loading idea bucket..." />}>
-          <TripIdeaBucketSection tripId={trip.id} canEdit={editable} />
-        </Suspense>
+          <Suspense fallback={<SectionFallback title="Idea Bucket" description="Loading idea bucket..." />}>
+            <TripIdeaBucketSection tripId={trip.id} canEdit={editable} />
+          </Suspense>
+        </TripPlannerDragProvider>
 
         <Suspense fallback={<SectionFallback title="Packing List" description="Loading packing list..." />}>
           <TripPackingSection tripId={trip.id} canEdit={editable} />
@@ -244,9 +252,19 @@ async function TripMapSection({ tripId, canEdit }: { tripId: string; canEdit: bo
   );
 }
 
-async function TripTimelineSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+async function TripTimelineSection({
+  tripId,
+  canEdit,
+  tripStartDate,
+  tripEndDate,
+}: {
+  tripId: string;
+  canEdit: boolean;
+  tripStartDate: string;
+  tripEndDate: string;
+}) {
   const { segments, stays, activities, food } = await getTripTimelineData(tripId);
-  return <Timeline tripId={tripId} canEdit={canEdit} segments={segments} stays={stays} activities={activities} food={food} />;
+  return <Timeline tripId={tripId} canEdit={canEdit} tripStartDate={tripStartDate} tripEndDate={tripEndDate} segments={segments} stays={stays} activities={activities} food={food} />;
 }
 
 async function TripIdeaBucketSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {

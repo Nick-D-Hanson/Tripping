@@ -685,6 +685,195 @@ const ideaBucketItemSchema = z
     { message: "Select an activity location from the search results." },
   );
 
+const plannerDragItemSchema = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("idea"), id: z.string().uuid() }),
+  z.object({
+    source: z.literal("timeline"),
+    id: z.string().uuid(),
+    kind: z.enum(["travel", "lodging", "activity", "food"]),
+  }),
+]);
+
+const plannerDropTargetSchema = z.discriminatedUnion("target", [
+  z.object({ target: z.literal("idea-bucket") }),
+  z.object({
+    target: z.literal("day"),
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    sourceOffsetMinutes: z.number().int().min(-840).max(840),
+    targetOffsetMinutes: z.number().int().min(-840).max(840),
+  }),
+]);
+
+type PlannerDragItem = z.infer<typeof plannerDragItemSchema>;
+type PlannerDayTarget = Extract<z.infer<typeof plannerDropTargetSchema>, { target: "day" }>;
+
+function dateAtLocalTime(day: string, hour: number, minute: number, offsetMinutes: number) {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date, hour, minute) + offsetMinutes * 60_000);
+}
+
+function moveDateToDay(value: Date, target: PlannerDayTarget) {
+  const localValue = new Date(value.getTime() - target.sourceOffsetMinutes * 60_000);
+  return dateAtLocalTime(
+    target.day,
+    localValue.getUTCHours(),
+    localValue.getUTCMinutes(),
+    target.targetOffsetMinutes,
+  );
+}
+
+async function moveTimelineItemToDay(
+  db: ReturnType<typeof getDb>,
+  tripId: string,
+  item: Extract<PlannerDragItem, { source: "timeline" }>,
+  target: PlannerDayTarget,
+) {
+  if (item.kind === "travel") {
+    const [record] = await db.select().from(travelSegments).where(and(eq(travelSegments.id, item.id), eq(travelSegments.tripId, tripId))).limit(1);
+    if (!record) throw new Error("That travel item is no longer available.");
+    const startDatetime = moveDateToDay(record.startDatetime, target);
+    const delta = startDatetime.getTime() - record.startDatetime.getTime();
+    await db.update(travelSegments).set({
+      startDatetime,
+      endDatetime: record.endDatetime ? new Date(record.endDatetime.getTime() + delta) : null,
+      updatedAt: new Date(),
+    }).where(and(eq(travelSegments.id, item.id), eq(travelSegments.tripId, tripId)));
+    return;
+  }
+
+  if (item.kind === "lodging") {
+    const [record] = await db.select().from(lodging).where(and(eq(lodging.id, item.id), eq(lodging.tripId, tripId))).limit(1);
+    if (!record) throw new Error("That lodging item is no longer available.");
+    const checkIn = moveDateToDay(record.checkIn, target);
+    const delta = checkIn.getTime() - record.checkIn.getTime();
+    await db.update(lodging).set({
+      checkIn,
+      checkOut: record.checkOut ? new Date(record.checkOut.getTime() + delta) : null,
+      updatedAt: new Date(),
+    }).where(and(eq(lodging.id, item.id), eq(lodging.tripId, tripId)));
+    return;
+  }
+
+  const table = item.kind === "activity" ? activities : food;
+  const [record] = await db.select().from(table).where(and(eq(table.id, item.id), eq(table.tripId, tripId))).limit(1);
+  if (!record) throw new Error(`That ${item.kind} item is no longer available.`);
+  await db.update(table).set({ datetime: moveDateToDay(record.datetime, target), updatedAt: new Date() }).where(and(eq(table.id, item.id), eq(table.tripId, tripId)));
+}
+
+export async function moveTripPlannerItem(
+  tripId: string,
+  rawItem: PlannerDragItem,
+  rawTarget: z.infer<typeof plannerDropTargetSchema>,
+) {
+  const { user, context } = await requireEditorMutationContext("moveTripPlannerItem", tripId);
+  const item = plannerDragItemSchema.parse(rawItem);
+  const target = plannerDropTargetSchema.parse(rawTarget);
+
+  if (item.source === "idea" && target.target === "idea-bucket") {
+    return { ok: true } satisfies ActionResult;
+  }
+
+  if (item.source === "timeline" && target.target === "idea-bucket" && item.kind === "travel") {
+    return { ok: false, error: "Travel items cannot be moved to the Idea Bucket." } satisfies ActionResult;
+  }
+
+  try {
+    const db = getDb();
+    if (item.source === "idea" && target.target === "day") {
+      const [idea] = await db.select().from(ideaBucketItems).where(and(eq(ideaBucketItems.id, item.id), eq(ideaBucketItems.tripId, tripId))).limit(1);
+      if (!idea) throw new Error("That idea is no longer available.");
+      const datetime = dateAtLocalTime(target.day, 8, 0, target.targetOffsetMinutes);
+      const removeIdea = db.delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, item.id), eq(ideaBucketItems.tripId, tripId)));
+
+      if (idea.kind === "housing") {
+        await db.batch([
+          db.insert(lodging).values({
+            tripId,
+            title: idea.description,
+            name: idea.locationName || idea.description,
+            address: idea.address,
+            lat: idea.lat,
+            lng: idea.lng,
+            url: idea.url,
+            notes: idea.notes,
+            checkIn: datetime,
+          }),
+          removeIdea,
+        ]);
+      } else if (idea.kind === "activity") {
+        await db.batch([
+          db.insert(activities).values({
+            tripId,
+            title: idea.description,
+            name: idea.locationName || idea.description,
+            address: idea.address,
+            lat: idea.lat,
+            lng: idea.lng,
+            url: idea.url,
+            notes: idea.notes,
+            datetime,
+          }),
+          removeIdea,
+        ]);
+      } else {
+        await db.batch([
+          db.insert(food).values({
+            tripId,
+            title: idea.description,
+            name: idea.locationName || idea.description,
+            address: idea.address,
+            lat: idea.lat,
+            lng: idea.lng,
+            url: idea.url,
+            notes: idea.notes,
+            datetime,
+          }),
+          removeIdea,
+        ]);
+      }
+    } else if (item.source === "timeline" && target.target === "day") {
+      await moveTimelineItemToDay(db, tripId, item, target);
+    } else if (item.source === "timeline" && item.kind !== "travel") {
+      const table = item.kind === "lodging" ? lodging : item.kind === "activity" ? activities : food;
+      const [record] = await db.select().from(table).where(and(eq(table.id, item.id), eq(table.tripId, tripId))).limit(1);
+      if (!record) throw new Error(`That ${item.kind} item is no longer available.`);
+
+      await db.batch([
+        db.insert(ideaBucketItems).values({
+          tripId,
+          kind: item.kind === "lodging" ? "housing" : item.kind,
+          description: record.title || record.name,
+          locationName: record.name,
+          address: record.address,
+          lat: record.lat,
+          lng: record.lng,
+          url: record.url,
+          notes: record.notes,
+          createdByUserId: user.id,
+        }),
+        db.delete(table).where(and(eq(table.id, item.id), eq(table.tripId, tripId))),
+      ]);
+    }
+  } catch (error) {
+    return validationError(error);
+  }
+
+  await auditMutation({
+    tripId,
+    actorUserId: user.id,
+    action: "trip_item_saved",
+    targetType: "planner_drag",
+    targetId: item.id,
+    requestId: context.requestId,
+    ipAddress: context.ip,
+    metadata: { source: item.source, target: target.target, day: target.target === "day" ? target.day : null },
+  });
+  refreshTripItinerary(tripId);
+  refreshTripIdeas(tripId);
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
+}
+
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const { user, context } = await requireEditorMutationContext("saveActivity", tripId);
   const convertedIdeaId = formValue(formData, "convertedIdeaId").trim();

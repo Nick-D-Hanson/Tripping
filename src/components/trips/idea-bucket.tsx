@@ -1,10 +1,12 @@
 "use client";
 
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Activity, ChevronDown, Home, MapPin, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, IdeaBucketItemDialog, LodgingDialog } from "@/components/trips/item-dialogs";
+import { PlannerDragHandle, plannerIdeaBucketDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,11 +62,64 @@ function PlanButton({ tripId, canEdit, item }: { tripId: string; canEdit: boolea
   return <FoodDialog tripId={tripId} canEdit={canEdit} idea={idea} />;
 }
 
+function DraggableIdeaRow({ tripId, canEdit, item }: { tripId: string; canEdit: boolean; item: IdeaBucketItem }) {
+  const dragEnabled = usePlannerDragEnabled();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `idea:${item.id}`,
+    disabled: !dragEnabled,
+    data: { source: "idea", id: item.id, label: item.description, kind: item.kind },
+  });
+
+  return (
+    <EntityRow
+      ref={setNodeRef}
+      className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between ${isDragging ? "opacity-40" : ""}`}
+    >
+      <div className="flex min-w-0 flex-1 items-start gap-1">
+        {dragEnabled ? (
+          <button
+            type="button"
+            className="-ml-2 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Drag ${item.description}`}
+            {...attributes}
+            {...listeners}
+          >
+            <PlannerDragHandle label={item.description} />
+          </button>
+        ) : null}
+        <EntityRowBody className="min-w-0 pt-2">
+          <EntityRowTitle>
+            <p className="font-medium">{item.description}</p>
+            <ExternalLinkButton href={item.url} label={item.description} />
+          </EntityRowTitle>
+          {item.address ? (
+            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="mt-0.5 size-4 shrink-0" />
+              <span>{item.address}</span>
+            </p>
+          ) : null}
+          {item.notes ? <EntityRowNotes>{item.notes}</EntityRowNotes> : null}
+        </EntityRowBody>
+      </div>
+
+      <EntityRowActions>
+        <EntityRowAvatar label={`Added by ${item.creatorInitials}`}>{item.creatorInitials}</EntityRowAvatar>
+        {canEdit ? <PlanButton tripId={tripId} canEdit={canEdit} item={item} /> : null}
+        {canEdit ? <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} item={item} /> : null}
+        {canEdit ? <DeleteButton kind="idea" tripId={tripId} id={item.id} /> : null}
+      </EntityRowActions>
+    </EntityRow>
+  );
+}
+
 export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
   const [expanded, setExpanded] = useState(false);
   const sortedItems = [...items].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const dragEnabled = usePlannerDragEnabled();
+  const { setNodeRef, isOver } = useDroppable({ id: plannerIdeaBucketDropId, disabled: !dragEnabled });
 
   return (
+    <div ref={setNodeRef} className={`rounded-lg transition-colors ${isOver ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}>
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -119,30 +174,7 @@ export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
                 ) : (
                   <div className="grid gap-3">
                     {groupItems.map((item) => (
-                      <EntityRow key={item.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <EntityRowBody className="min-w-0">
-                          <EntityRowTitle>
-                            <p className="font-medium">{item.description}</p>
-                            <ExternalLinkButton href={item.url} label={item.description} />
-                          </EntityRowTitle>
-                          {item.address ? (
-                            <p className="flex items-start gap-2 text-sm text-muted-foreground">
-                              <MapPin className="mt-0.5 size-4 shrink-0" />
-                              <span>{item.address}</span>
-                            </p>
-                          ) : null}
-                          {item.notes ? <EntityRowNotes>{item.notes}</EntityRowNotes> : null}
-                        </EntityRowBody>
-
-                        <EntityRowActions>
-                          <EntityRowAvatar label={`Added by ${item.creatorInitials}`}>
-                            {item.creatorInitials}
-                          </EntityRowAvatar>
-                          {canEdit ? <PlanButton tripId={tripId} canEdit={canEdit} item={item} /> : null}
-                          {canEdit ? <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} item={item} /> : null}
-                          {canEdit ? <DeleteButton kind="idea" tripId={tripId} id={item.id} /> : null}
-                        </EntityRowActions>
-                      </EntityRow>
+                      <DraggableIdeaRow key={item.id} tripId={tripId} canEdit={canEdit} item={item} />
                     ))}
                   </div>
                 )}
@@ -152,5 +184,6 @@ export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
         )}
       </CardContent> : null}
     </Card>
+    </div>
   );
 }
