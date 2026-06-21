@@ -64,6 +64,13 @@
       "when": 1746480600000,
       "tag": "0009_audit_log_content_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782057600000,
+      "tag": "0010_idea_bucket_locations",
+      "breakpoints": true
     }
   ]
 }

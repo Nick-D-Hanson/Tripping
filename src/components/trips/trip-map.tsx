@@ -9,7 +9,7 @@ import { fmtDateTime } from "@/lib/dates";
 
 type Point = {
   id: string;
-  kind: "travel" | "lodging" | "activity" | "food";
+  kind: "travel" | "lodging" | "activity" | "food" | "idea";
   label: string;
   lng: number;
   lat: number;
@@ -40,6 +40,7 @@ const markerColors = {
   lodging: "#d97706",
   activity: "#2563eb",
   food: "#db2777",
+  idea: "#7c3aed",
 };
 
 const defaultMapStyle = "mapbox://styles/mapbox/streets-v12";

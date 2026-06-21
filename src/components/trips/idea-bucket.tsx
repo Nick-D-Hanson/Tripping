@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ChevronDown, Home, UtensilsCrossed } from "lucide-react";
+import { Activity, ChevronDown, Home, MapPin, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
@@ -15,6 +15,10 @@ type IdeaBucketItem = {
   id: string;
   kind: "housing" | "activity" | "food";
   description: string;
+  locationName: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
   url: string | null;
   notes: string | null;
   createdAt: Date;
@@ -37,6 +41,10 @@ function PlanButton({ tripId, canEdit, item }: { tripId: string; canEdit: boolea
   const idea = {
     id: item.id,
     description: item.description,
+    locationName: item.locationName,
+    address: item.address,
+    lat: item.lat,
+    lng: item.lng,
     url: item.url,
     notes: item.notes,
   };
@@ -117,6 +125,12 @@ export function IdeaBucket({ tripId, canEdit, items }: IdeaBucketProps) {
                             <p className="font-medium">{item.description}</p>
                             <ExternalLinkButton href={item.url} label={item.description} />
                           </EntityRowTitle>
+                          {item.address ? (
+                            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <MapPin className="mt-0.5 size-4 shrink-0" />
+                              <span>{item.address}</span>
+                            </p>
+                          ) : null}
                           {item.notes ? <EntityRowNotes>{item.notes}</EntityRowNotes> : null}
                         </EntityRowBody>
 

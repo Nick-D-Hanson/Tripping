@@ -39,6 +39,11 @@ const selectedCoordinate = z
   .min(1, "Select a Mapbox location.")
   .transform(Number)
   .pipe(z.number().finite());
+const optionalCoordinate = z
+  .string()
+  .trim()
+  .transform((value) => (value ? Number(value) : null))
+  .pipe(z.number().finite().nullable());
 const requiredDateTime = z.date();
 const optionalDateTime = z.date().nullable();
 const requiredLocationText = (message: string) => z.string().trim().min(1, message);
@@ -661,12 +666,24 @@ const packingItemSchema = z.object({
   notes: nullableText,
 });
 
-const ideaBucketItemSchema = z.object({
-  kind: z.enum(["housing", "activity", "food"]),
-  description: z.string().trim().min(1),
-  url: nullableUrl,
-  notes: nullableText,
-});
+const ideaBucketItemSchema = z
+  .object({
+    kind: z.enum(["housing", "activity", "food"]),
+    description: z.string().trim().min(1),
+    locationName: nullableText,
+    address: nullableText,
+    lat: optionalCoordinate,
+    lng: optionalCoordinate,
+    url: nullableUrl,
+    notes: nullableText,
+  })
+  .refine(
+    ({ locationName, address, lat, lng }) => {
+      const locationValues = [locationName, address, lat, lng];
+      return locationValues.every((value) => value == null) || locationValues.every((value) => value != null);
+    },
+    { message: "Select an activity location from the search results." },
+  );
 
 export async function saveActivity(tripId: string, activityId: string | null, formData: FormData) {
   const { user, context } = await requireEditorMutationContext("saveActivity", tripId);
@@ -1001,6 +1018,10 @@ export async function saveIdeaBucketItem(tripId: string, itemId: string | null, 
       return ideaBucketItemSchema.parse({
         kind: formValue(formData, "kind"),
         description: formValue(formData, "description"),
+        locationName: formValue(formData, "locationName"),
+        address: formValue(formData, "address"),
+        lat: formValue(formData, "lat"),
+        lng: formValue(formData, "lng"),
         url: formValue(formData, "url"),
         notes: formValue(formData, "notes"),
       });

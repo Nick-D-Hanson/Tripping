@@ -150,7 +150,12 @@ export async function getTripShellData(tripId: string) {
 }
 
 export async function getTripMapData(tripId: string) {
-  return getTripItineraryData(tripId);
+  const [itinerary, ideas] = await Promise.all([
+    getTripItineraryData(tripId),
+    getTripIdeaBucketItems(tripId),
+  ]);
+
+  return { ...itinerary, ideas };
 }
 
 export async function getTripTimelineData(tripId: string) {

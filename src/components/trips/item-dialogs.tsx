@@ -19,6 +19,10 @@ import { toDateTimeInputValue } from "@/lib/dates";
 type IdeaDraft = {
   id: string;
   description: string;
+  locationName: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
   url: string | null;
   notes: string | null;
 };
@@ -264,10 +268,10 @@ export function LodgingDialog({
             locationNameName="name"
             latName="lat"
             lngName="lng"
-            defaultAddress={stay?.address}
-            defaultLocationName={stay?.name}
-            defaultLat={stay?.lat}
-            defaultLng={stay?.lng}
+            defaultAddress={stay?.address ?? idea?.address}
+            defaultLocationName={stay?.name ?? idea?.locationName}
+            defaultLat={stay?.lat ?? idea?.lat}
+            defaultLng={stay?.lng ?? idea?.lng}
             placeholder="Search for a hotel, stay, or address"
           />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -365,10 +369,10 @@ export function ActivityDialog({
             locationNameName="name"
             latName="lat"
             lngName="lng"
-            defaultAddress={activity?.address}
-            defaultLocationName={activity?.name}
-            defaultLat={activity?.lat}
-            defaultLng={activity?.lng}
+            defaultAddress={activity?.address ?? idea?.address}
+            defaultLocationName={activity?.name ?? idea?.locationName}
+            defaultLat={activity?.lat ?? idea?.lat}
+            defaultLng={activity?.lng ?? idea?.lng}
             placeholder="Search for a place, attraction, or address"
           />
           <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(activity?.datetime)} required />
@@ -466,10 +470,10 @@ export function FoodDialog({
             locationNameName="name"
             latName="lat"
             lngName="lng"
-            defaultAddress={food?.address}
-            defaultLocationName={food?.name}
-            defaultLat={food?.lat}
-            defaultLng={food?.lng}
+            defaultAddress={food?.address ?? idea?.address}
+            defaultLocationName={food?.name ?? idea?.locationName}
+            defaultLat={food?.lat ?? idea?.lat}
+            defaultLng={food?.lng ?? idea?.lng}
             placeholder="Search for a restaurant, cafe, or bar"
           />
           <DateTimeField label="Date and time" name="datetime" value={toDateTimeInputValue(food?.datetime)} required />
@@ -502,6 +506,10 @@ export function IdeaBucketItemDialog({
     id: string;
     kind: "housing" | "activity" | "food";
     description: string;
+    locationName: string | null;
+    address: string | null;
+    lat: number | null;
+    lng: number | null;
     url: string | null;
     notes: string | null;
   };
@@ -542,7 +550,7 @@ export function IdeaBucketItemDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{item ? "Edit idea" : "Add idea"}</DialogTitle>
-          <DialogDescription>Capture early options without adding them to the map or timeline.</DialogDescription>
+          <DialogDescription>Capture early options. Ideas with a location appear on the map but not the timeline.</DialogDescription>
         </DialogHeader>
         <form action={action} className="grid gap-4">
           <FormError message={error} />
@@ -561,6 +569,18 @@ export function IdeaBucketItemDialog({
             <FieldLabel required>Description</FieldLabel>
             <Input name="description" defaultValue={item?.description ?? ""} placeholder="Beachfront stay near the old town" required />
           </Field>
+          <LocationSearch
+            label="Activity location (optional)"
+            addressName="address"
+            locationNameName="locationName"
+            latName="lat"
+            lngName="lng"
+            defaultAddress={item?.address}
+            defaultLocationName={item?.locationName}
+            defaultLat={item?.lat}
+            defaultLng={item?.lng}
+            placeholder="Search for a place, attraction, or address"
+          />
           <Field>
             <FieldLabel>Optional link</FieldLabel>
             <Input name="url" type="url" defaultValue={item?.url ?? ""} placeholder="https://example.com" />

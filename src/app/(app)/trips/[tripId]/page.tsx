@@ -135,7 +135,7 @@ function SectionFallback({ title }: { title: string; description: string }) {
 }
 
 async function TripMapSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
-  const { segments, stays, activities, food } = await getTripMapData(tripId);
+  const { segments, stays, activities, food, ideas } = await getTripMapData(tripId);
 
   const points = [
     ...segments.flatMap((segment) => {
@@ -193,6 +193,16 @@ async function TripMapSection({ tripId, canEdit }: { tripId: string; canEdit: bo
         lng: item.lng!,
         detailDateTime: item.datetime,
       })),
+    ...ideas
+      .filter((idea) => idea.lat != null && idea.lng != null)
+      .map((idea) => ({
+        id: `idea-${idea.id}`,
+        kind: "idea" as const,
+        label: idea.description,
+        lat: idea.lat!,
+        lng: idea.lng!,
+        detail: `Idea · ${idea.locationName}`,
+      })),
   ];
 
   const fallbackLines = segments
@@ -211,7 +221,7 @@ async function TripMapSection({ tripId, canEdit }: { tripId: string; canEdit: bo
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <CardTitle>Map</CardTitle>
-            <CardDescription>Travel, stays, and activities with routed or fallback paths.</CardDescription>
+            <CardDescription>Travel, stays, activities, food, and located ideas with routed or fallback paths.</CardDescription>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <SegmentDialog tripId={tripId} canEdit={canEdit} />
