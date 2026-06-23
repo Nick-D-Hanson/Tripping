@@ -18,14 +18,14 @@ import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
 const emptySubscribe = () => () => {};
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
-const desktopQuery = "(min-width: 1024px)";
-const desktopSubscribe = (callback: () => void) => {
+const configurableTimelineQuery = "(min-width: 768px)";
+const configurableTimelineSubscribe = (callback: () => void) => {
   if (typeof window === "undefined") return () => {};
-  const media = window.matchMedia(desktopQuery);
+  const media = window.matchMedia(configurableTimelineQuery);
   media.addEventListener("change", callback);
   return () => media.removeEventListener("change", callback);
 };
-const desktopSnapshot = () => (typeof window === "undefined" ? false : window.matchMedia(desktopQuery).matches);
+const configurableTimelineSnapshot = () => (typeof window === "undefined" ? false : window.matchMedia(configurableTimelineQuery).matches);
 
 type TimelineProps = {
   tripId: string;
@@ -122,7 +122,7 @@ const displayOptions: Array<{ value: TimelineDisplayMode; label: string }> = [
 
 export function Timeline({ tripId, canEdit, tripStartDate, tripEndDate, segments, stays, activities, food }: TimelineProps) {
   const hydrated = useSyncExternalStore(emptySubscribe, clientSnapshot, serverSnapshot);
-  const isDesktop = useSyncExternalStore(desktopSubscribe, desktopSnapshot, serverSnapshot);
+  const isConfigurableTimeline = useSyncExternalStore(configurableTimelineSubscribe, configurableTimelineSnapshot, serverSnapshot);
   const [displayMode, setDisplayMode] = useState<TimelineDisplayMode>(3);
   const [openMobileDayKey, setOpenMobileDayKey] = useState<string | null>(null);
 
@@ -237,13 +237,13 @@ export function Timeline({ tripId, canEdit, tripStartDate, tripEndDate, segments
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <CardTitle>Timeline</CardTitle>
             <CardDescription>Plan the trip by day. Items are grouped and ordered by time.</CardDescription>
           </div>
           <div className="grid gap-3">
-            {isDesktop ? <TimelineDisplayControl value={displayMode} onChange={setDisplayMode} /> : null}
+            {isConfigurableTimeline ? <TimelineDisplayControl value={displayMode} onChange={setDisplayMode} /> : null}
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <SegmentDialog tripId={tripId} canEdit={canEdit} />
               <LodgingDialog tripId={tripId} canEdit={canEdit} />
@@ -254,7 +254,7 @@ export function Timeline({ tripId, canEdit, tripStartDate, tripEndDate, segments
         </div>
       </CardHeader>
       <CardContent className="grid gap-6">
-        {isDesktop ? (
+        {isConfigurableTimeline ? (
           <div className="overflow-x-auto pb-2">
             <div
               className="grid min-w-full gap-4"
