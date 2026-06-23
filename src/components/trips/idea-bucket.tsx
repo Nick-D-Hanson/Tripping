@@ -34,9 +34,9 @@ type IdeaBucketProps = {
 };
 
 const groups = [
-  { kind: "housing" as const, label: "Housing", icon: Home },
   { kind: "activity" as const, label: "Activities", icon: Activity },
   { kind: "food" as const, label: "Food", icon: UtensilsCrossed },
+  { kind: "housing" as const, label: "Housing", icon: Home },
 ];
 
 function PlanButton({ tripId, canEdit, item }: { tripId: string; canEdit: boolean; item: IdeaBucketItem }) {
