@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useSyncExternalStore } from "react";
 import { moveTripPlannerItem } from "@/app/actions";
 import { useToast } from "@/components/ui/toast-provider";
 
@@ -31,8 +31,12 @@ export type PlannerDragData =
 type PlannerDragContextValue = { enabled: boolean };
 
 const PlannerDragContext = createContext<PlannerDragContextValue>({ enabled: false });
+const hydrationSubscribe = () => () => {};
+const clientHydrationSnapshot = () => true;
+const serverHydrationSnapshot = () => false;
 
 export const plannerDayDropId = (day: string) => `planner-day:${day}`;
+export const plannerDayPanelDropId = (day: string) => `planner-day-panel:${day}`;
 export const plannerIdeaBucketDropId = "planner-idea-bucket";
 
 export function usePlannerDragEnabled() {
@@ -57,6 +61,7 @@ export function TripPlannerDragProvider({
   canEdit: boolean;
   children: React.ReactNode;
 }) {
+  const hydrated = useSyncExternalStore(hydrationSubscribe, clientHydrationSnapshot, serverHydrationSnapshot);
   const router = useRouter();
   const { toast } = useToast();
   const [activeItem, setActiveItem] = useState<PlannerDragData | null>(null);
@@ -78,9 +83,9 @@ export function TripPlannerDragProvider({
 
     const target = overId === plannerIdeaBucketDropId
       ? ({ target: "idea-bucket" } as const)
-      : overId.startsWith("planner-day:")
+      : overId.startsWith("planner-day:") || overId.startsWith("planner-day-panel:")
         ? (() => {
-            const day = overId.slice("planner-day:".length);
+            const day = overId.slice(overId.indexOf(":") + 1);
             const targetDate = new Date(`${day}T12:00:00`);
             const sourceDate = item.source === "timeline" ? new Date(item.datetime) : targetDate;
             return {
@@ -114,6 +119,10 @@ export function TripPlannerDragProvider({
       description: target.target === "day" ? `${item.label} is now scheduled for ${target.day}.` : `${item.label} is saved as an idea.`,
     });
     router.refresh();
+  }
+
+  if (!hydrated) {
+    return <PlannerDragContext.Provider value={{ enabled: false }}>{children}</PlannerDragContext.Provider>;
   }
 
   return (

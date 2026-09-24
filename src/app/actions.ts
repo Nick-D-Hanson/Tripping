@@ -657,12 +657,19 @@ const foodSchema = z.object({
   lat: selectedCoordinate,
   lng: selectedCoordinate,
   datetime: requiredDateTime,
+  category: z.enum(["meal", "coffee"]),
   notes: nullableText,
 });
 
 const packingItemSchema = z.object({
   name: z.string().trim().min(1),
+  category: z.enum(["Documents", "Clothing", "Toiletries", "Gear", "Other"]),
   quantity: nullableText,
+  assignedToMemberId: z
+    .string()
+    .trim()
+    .transform((value) => (value && value !== "unassigned" ? value : null))
+    .pipe(z.string().uuid().nullable()),
   notes: nullableText,
 });
 
@@ -990,6 +997,7 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
         lat: formValue(formData, "lat"),
         lng: formValue(formData, "lng"),
         datetime: parseRequiredLocalDateTime(formData, "datetime"),
+        category: formValue(formData, "category"),
         notes: formValue(formData, "notes"),
       });
     } catch (error) {
@@ -1034,6 +1042,7 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
         metadata: {
           mode: foodId ? "update" : "create",
           name: input.name,
+          category: input.category,
           convertedIdeaId: convertedIdeaId || null,
         },
       });
@@ -1089,6 +1098,18 @@ export async function savePackingItem(tripId: string, itemId: string | null, for
 
   if ("ok" in input) return input;
 
+  if (input.assignedToMemberId) {
+    const [assignee] = await getDb()
+      .select({ id: tripMembers.id })
+      .from(tripMembers)
+      .where(and(eq(tripMembers.id, input.assignedToMemberId), eq(tripMembers.tripId, tripId)))
+      .limit(1);
+
+    if (!assignee) {
+      return { ok: false, error: "Choose a traveler who belongs to this trip." } satisfies ActionResult;
+    }
+  }
+
   await logMutation(
     "savePackingItem",
     {
@@ -1123,6 +1144,8 @@ export async function savePackingItem(tripId: string, itemId: string | null, for
         metadata: {
           mode: itemId ? "update" : "create",
           name: input.name,
+          category: input.category,
+          assignedToMemberId: input.assignedToMemberId,
         },
       });
     },

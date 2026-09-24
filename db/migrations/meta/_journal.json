@@ -71,6 +71,20 @@
       "when": 1782057600000,
       "tag": "0010_idea_bucket_locations",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790236800000,
+      "tag": "0011_packing_categories_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790236860000,
+      "tag": "0012_food_categories",
+      "breakpoints": true
     }
   ]
 }

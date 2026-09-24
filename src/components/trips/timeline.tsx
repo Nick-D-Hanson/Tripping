@@ -2,36 +2,28 @@
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { eachDayOfInterval, format, parseISO } from "date-fns";
-import { Activity, CalendarDays, ChevronDown, Clock, Hotel, Plane, UtensilsCrossed } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { Activity, Hotel, Lightbulb, Plane, UtensilsCrossed } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AddItineraryItemDialog } from "@/components/trips/add-itinerary-item-dialog";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
-import { PlannerDragHandle, plannerDayDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
+import { PlannerDragHandle, plannerDayDropId, plannerDayPanelDropId, plannerIdeaBucketDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EntityRow, EntityRowActions, EntityRowMeta, EntityRowNotes } from "@/components/ui/entity-row";
 import { SectionState } from "@/components/ui/section-state";
-import { dateValue, dayKey, dayLabel, fmtDateTime } from "@/lib/dates";
+import { dateValue, dayKey } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 
-const emptySubscribe = () => () => {};
-const clientSnapshot = () => true;
-const serverSnapshot = () => false;
-const configurableTimelineQuery = "(min-width: 768px)";
-const configurableTimelineSubscribe = (callback: () => void) => {
-  if (typeof window === "undefined") return () => {};
-  const media = window.matchMedia(configurableTimelineQuery);
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-};
-const configurableTimelineSnapshot = () => (typeof window === "undefined" ? false : window.matchMedia(configurableTimelineQuery).matches);
-
-type TimelineProps = {
+export type TimelineProps = {
   tripId: string;
   canEdit: boolean;
   tripStartDate: string;
   tripEndDate: string;
+  activeDayKey?: string;
+  onActiveDayChange?: (day: string) => void;
+  selectedItemId?: string | null;
+  onSelectItem?: (item: { id: string; sourceId: string; type: TimelineItem["type"]; day: string }) => void;
+  className?: string;
   segments: Array<{
     id: string;
     title: string | null;
@@ -82,6 +74,7 @@ type TimelineProps = {
     lat: number | null;
     lng: number | null;
     datetime: Date;
+    category: string;
     notes: string | null;
   }>;
 };
@@ -94,449 +87,329 @@ type TimelineItem = {
   kindLabel: string;
   title: string;
   url: string | null;
-  meta: string;
   notes: string | null;
   route?: boolean;
   raw: TimelineProps["segments"][number] | TimelineProps["stays"][number] | TimelineProps["activities"][number] | TimelineProps["food"][number];
 };
 
-type TimelineDayData = {
-  key: string;
-  items: TimelineItem[];
-};
+type TimelineDayData = { key: string; items: TimelineItem[] };
 
-type TimelineGroup = {
-  label: "Morning" | "Afternoon" | "Evening";
-  items: TimelineItem[];
-};
-
-type TimelineDisplayMode = 1 | 3 | 5 | 7 | "all";
-
-const displayOptions: Array<{ value: TimelineDisplayMode; label: string }> = [
-  { value: 1, label: "1 Day" },
-  { value: 3, label: "3 Days" },
-  { value: 5, label: "5 Days" },
-  { value: 7, label: "7 Days" },
-  { value: "all", label: "All Days" },
-];
-
-export function Timeline({ tripId, canEdit, tripStartDate, tripEndDate, segments, stays, activities, food }: TimelineProps) {
-  const hydrated = useSyncExternalStore(emptySubscribe, clientSnapshot, serverSnapshot);
-  const isConfigurableTimeline = useSyncExternalStore(configurableTimelineSubscribe, configurableTimelineSnapshot, serverSnapshot);
-  const [displayMode, setDisplayMode] = useState<TimelineDisplayMode>(3);
-  const [openMobileDayKey, setOpenMobileDayKey] = useState<string | null>(null);
-
-  const items = useMemo(
-    () => [
-      ...segments.map((item) => ({
-        id: `segment-${item.id}`,
-        sourceId: item.id,
-        when: dateValue(item.startDatetime),
-        type: "travel" as const,
-        kindLabel: item.type === "flight" ? "Flight" : "Drive",
-        title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
-        url: item.url,
-        meta: `${item.type} · ${fmtDateTime(item.startDatetime)}${item.endDatetime ? ` to ${fmtDateTime(item.endDatetime)}` : ""}`,
-        notes: item.notes,
-        raw: item,
-      })),
-      ...stays.map((item) => ({
-        id: `lodging-${item.id}`,
-        sourceId: item.id,
-        when: dateValue(item.checkIn),
-        type: "lodging" as const,
-        kindLabel: "Lodging",
-        title: item.title || item.name,
-        url: item.url,
-        meta: `Check-in ${fmtDateTime(item.checkIn)}${item.checkOut ? ` · Check-out ${fmtDateTime(item.checkOut)}` : ""}`,
-        notes: item.notes,
-        raw: item,
-      })),
-      ...activities.map((item) => ({
-        id: `activity-${item.id}`,
-        sourceId: item.id,
-        when: dateValue(item.datetime),
-        type: "activity" as const,
-        kindLabel: "Activity",
-        title: item.title || item.name,
-        url: item.url,
-        meta: `Activity · ${fmtDateTime(item.datetime)}`,
-        notes: item.notes,
-        route: item.includeInRoute,
-        raw: item,
-      })),
-      ...food.map((item) => ({
-        id: `food-${item.id}`,
-        sourceId: item.id,
-        when: dateValue(item.datetime),
-        type: "food" as const,
-        kindLabel: "Food",
-        title: item.title || item.name,
-        url: item.url,
-        meta: `Food · ${fmtDateTime(item.datetime)}`,
-        notes: item.notes,
-        raw: item,
-      })),
-    ].sort((a, b) => a.when.getTime() - b.when.getTime()),
-    [activities, food, segments, stays],
-  );
-
-  const days = useMemo(
-    () => {
-      const itemsByDay = new Map<string, TimelineItem[]>();
-      for (const item of items) {
-        const key = dayKey(item.when);
-        itemsByDay.set(key, [...(itemsByDay.get(key) ?? []), item]);
-      }
-
-      const tripDays = eachDayOfInterval({ start: parseISO(tripStartDate), end: parseISO(tripEndDate) });
-      const keys = new Set([...tripDays.map(dayKey), ...itemsByDay.keys()]);
-      return [...keys].sort().map((key) => ({ key, items: itemsByDay.get(key) ?? [] }));
-    },
-    [items, tripEndDate, tripStartDate],
-  );
-
-  const desktopDays = useMemo(
-    () => displayMode === "all" ? days : days.slice(0, displayMode),
-    [days, displayMode],
-  );
-
-  if (!hydrated) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SectionState
-            title="Loading timeline"
-            description="Trip items are being grouped into day-by-day itinerary sections."
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (items.length === 0 && !canEdit) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SectionState
-            title="No itinerary yet"
-            description="Add travel, lodging, or activities to build the trip timeline."
-            action={canEdit ? <SegmentDialog tripId={tripId} canEdit={canEdit} /> : null}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
+function DayPickerButton({ day, dayNumber, selected, canEdit, onSelect }: { day: string; dayNumber: number; selected: boolean; canEdit: boolean; onSelect: () => void }) {
+  const dragEnabled = usePlannerDragEnabled();
+  const { setNodeRef, isOver } = useDroppable({ id: plannerDayDropId(day), disabled: !canEdit || !dragEnabled });
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <CardTitle>Timeline</CardTitle>
-            <CardDescription>Plan the trip by day. Items are grouped and ordered by time.</CardDescription>
-          </div>
-          <div className="grid gap-3">
-            {isConfigurableTimeline ? <TimelineDisplayControl value={displayMode} onChange={setDisplayMode} /> : null}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <SegmentDialog tripId={tripId} canEdit={canEdit} />
-              <LodgingDialog tripId={tripId} canEdit={canEdit} />
-              <ActivityDialog tripId={tripId} canEdit={canEdit} />
-              <FoodDialog tripId={tripId} canEdit={canEdit} />
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-6">
-        {isConfigurableTimeline ? (
-          <div className="overflow-x-auto pb-2">
-            <div
-              className="grid min-w-full gap-4"
-              style={{ gridTemplateColumns: `repeat(${desktopDays.length}, minmax(15rem, 1fr))` }}
-            >
-              {desktopDays.map((day) => (
-                <TimelineDayColumn key={day.key} tripId={tripId} canEdit={canEdit} day={day} />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {days.map((day) => (
-              <TimelineDayCard
-                key={day.key}
-                tripId={tripId}
-                canEdit={canEdit}
-                day={day}
-                isOpen={openMobileDayKey === day.key}
-                onToggle={() => setOpenMobileDayKey((current) => current === day.key ? null : day.key)}
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={cn(
+        "flex h-15 w-13 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-transparent bg-muted/75 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors",
+        selected && "border-primary bg-primary text-primary-foreground shadow-sm",
+        isOver && "border-primary bg-primary/10 text-primary ring-2 ring-primary/20",
+      )}
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`Day ${dayNumber}, ${format(parseISO(day), "EEEE, MMMM d")}`}
+    >
+      <span>{format(parseISO(day), "EEE")}</span>
+      <span className={cn("text-base font-semibold", selected ? "text-white" : "text-foreground")}>{format(parseISO(day), "d")}</span>
+    </button>
   );
 }
 
-function TimelineDisplayControl({
-  value,
-  onChange,
-}: {
-  value: TimelineDisplayMode;
-  onChange: (value: TimelineDisplayMode) => void;
-}) {
+function IdeaBucketDropTarget() {
+  const dragEnabled = usePlannerDragEnabled();
+  const { setNodeRef, isOver } = useDroppable({ id: plannerIdeaBucketDropId, disabled: !dragEnabled });
+
   return (
-    <div className="grid gap-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Display</p>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Timeline days to display">
-        {displayOptions.map((option) => (
-          <Button
-            key={option.label}
-            type="button"
-            variant={value === option.value ? "primary" : "secondary"}
-            size="sm"
-            aria-pressed={value === option.value}
-            onClick={() => onChange(option.value)}
-          >
-            {option.label}
-          </Button>
-        ))}
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mt-3 flex min-h-9 items-center justify-center gap-2 rounded-lg border border-dashed px-3 text-[11px] font-semibold text-muted-foreground transition-colors",
+        isOver && "border-primary bg-primary/10 text-primary ring-2 ring-primary/15",
+      )}
+    >
+      <Lightbulb className="size-3.5" />
+      Drag a stop here to move it to Ideas
+    </div>
+  );
+}
+
+export function Timeline({
+  tripId,
+  canEdit,
+  tripStartDate,
+  tripEndDate,
+  activeDayKey,
+  onActiveDayChange,
+  selectedItemId,
+  onSelectItem,
+  className,
+  segments,
+  stays,
+  activities,
+  food,
+}: TimelineProps) {
+  const [internalDayKey, setInternalDayKey] = useState(tripStartDate);
+  const selectedDayKey = activeDayKey ?? internalDayKey;
+  const setSelectedDayKey = onActiveDayChange ?? setInternalDayKey;
+
+  const items = useMemo(() => [
+    ...segments.map((item) => ({
+      id: `segment-${item.id}`,
+      sourceId: item.id,
+      when: dateValue(item.startDatetime),
+      type: "travel" as const,
+      kindLabel: item.type === "flight" ? "Flight" : item.type === "drive" ? "Drive" : "Travel",
+      title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
+      url: item.url,
+      notes: item.notes,
+      raw: item,
+    })),
+    ...stays.map((item) => ({
+      id: `lodging-${item.id}`,
+      sourceId: item.id,
+      when: dateValue(item.checkIn),
+      type: "lodging" as const,
+      kindLabel: "Lodging",
+      title: item.title || item.name,
+      url: item.url,
+      notes: item.notes,
+      raw: item,
+    })),
+    ...activities.map((item) => ({
+      id: `activity-${item.id}`,
+      sourceId: item.id,
+      when: dateValue(item.datetime),
+      type: "activity" as const,
+      kindLabel: "Activity",
+      title: item.title || item.name,
+      url: item.url,
+      notes: item.notes,
+      route: item.includeInRoute,
+      raw: item,
+    })),
+    ...food.map((item) => ({
+      id: `food-${item.id}`,
+      sourceId: item.id,
+      when: dateValue(item.datetime),
+      type: "food" as const,
+      kindLabel: item.category === "coffee" ? "Coffee" : "Meal",
+      title: item.title || item.name,
+      url: item.url,
+      notes: item.notes,
+      raw: item,
+    })),
+  ].sort((a, b) => a.when.getTime() - b.when.getTime()), [activities, food, segments, stays]);
+
+  const days = useMemo(() => {
+    const itemsByDay = new Map<string, TimelineItem[]>();
+    for (const item of items) {
+      const key = dayKey(item.when);
+      itemsByDay.set(key, [...(itemsByDay.get(key) ?? []), item]);
+    }
+    const tripDays = eachDayOfInterval({ start: parseISO(tripStartDate), end: parseISO(tripEndDate) });
+    const keys = new Set([...tripDays.map(dayKey), ...itemsByDay.keys()]);
+    return [...keys].sort().map((key) => ({ key, items: itemsByDay.get(key) ?? [] }));
+  }, [items, tripEndDate, tripStartDate]);
+
+  const visibleDay = days.find((day) => day.key === selectedDayKey) ?? days[0];
+
+  return (
+    <section className={cn("flex min-h-0 flex-col bg-card", className)} aria-label="Trip itinerary">
+      <div className="shrink-0 border-b px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-serif text-xl font-medium tracking-tight">Your itinerary</p>
+            <p className="mt-1 text-xs text-muted-foreground">Choose a day, then review its stops in time order.</p>
+          </div>
+          {canEdit ? <AddItineraryItemDialog tripId={tripId} canEdit={canEdit} defaultDay={selectedDayKey} /> : null}
+        </div>
+
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Trip days">
+          {days.map((day, index) => (
+            <DayPickerButton
+              key={day.key}
+              day={day.key}
+              dayNumber={index + 1}
+              selected={day.key === selectedDayKey}
+              canEdit={canEdit}
+              onSelect={() => setSelectedDayKey(day.key)}
+            />
+          ))}
+        </div>
+        {canEdit ? <IdeaBucketDropTarget /> : null}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
+        {visibleDay ? (
+          <TimelineDay
+            day={visibleDay}
+            dayNumber={days.findIndex((candidate) => candidate.key === visibleDay.key) + 1}
+            tripId={tripId}
+            canEdit={canEdit}
+            active
+            selectedItemId={selectedItemId}
+            onActivate={() => setSelectedDayKey(visibleDay.key)}
+            onSelectItem={onSelectItem}
+          />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function TimelineDay({
+  day,
+  dayNumber,
+  tripId,
+  canEdit,
+  active,
+  selectedItemId,
+  onActivate,
+  onSelectItem,
+}: {
+  day: TimelineDayData;
+  dayNumber: number;
+  tripId: string;
+  canEdit: boolean;
+  active: boolean;
+  selectedItemId?: string | null;
+  onActivate: () => void;
+  onSelectItem?: TimelineProps["onSelectItem"];
+}) {
+  const dragEnabled = usePlannerDragEnabled();
+  const { setNodeRef, isOver } = useDroppable({ id: plannerDayPanelDropId(day.key), disabled: !dragEnabled });
+
+  return (
+    <section
+      ref={setNodeRef}
+      className={cn(
+        "min-h-full shrink-0 rounded-xl border bg-card p-3 transition-colors",
+        "w-full",
+        active && "border-primary/35",
+        isOver && "border-primary bg-primary/5 ring-2 ring-primary/20",
+      )}
+      onClick={onActivate}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3 border-b pb-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent">Day {dayNumber}</p>
+          <h3 className="mt-1 text-sm font-semibold">{format(parseISO(day.key), "EEEE, MMMM d")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{day.items.length} planned {day.items.length === 1 ? "stop" : "stops"}</p>
+        </div>
+        {active ? <span className="mt-1 size-2 rounded-full bg-primary" aria-label="Selected day" /> : null}
+      </div>
+
+      {day.items.length === 0 ? (
+        <SectionState
+          title="A blank canvas"
+          description={dragEnabled ? "Drop an idea here, or use the add controls above." : "No stops have been planned for this day yet."}
+          className="px-3 py-10"
+        />
+      ) : (
+        <div className="grid gap-1">
+          {day.items.map((item, index) => (
+            <TimelineItemRow
+              key={item.id}
+              item={item}
+              tripId={tripId}
+              canEdit={canEdit}
+              selected={selectedItemId === item.id}
+              last={index === day.items.length - 1}
+              onSelect={() => onSelectItem?.({ id: item.id, sourceId: item.sourceId, type: item.type, day: day.key })}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TimelineItemRow({ item, tripId, canEdit, selected, last, onSelect }: { item: TimelineItem; tripId: string; canEdit: boolean; selected: boolean; last: boolean; onSelect: () => void }) {
+  const dragEnabled = usePlannerDragEnabled();
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `timeline:${item.type}:${item.sourceId}`,
+    disabled: !dragEnabled,
+    data: { source: "timeline", id: item.sourceId, label: item.title, kind: item.type, day: dayKey(item.when), datetime: item.when.toISOString() },
+  });
+  const Icon = item.type === "travel" ? Plane : item.type === "lodging" ? Hotel : item.type === "activity" ? Activity : UtensilsCrossed;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "group relative flex gap-2 rounded-xl px-1 py-2 text-left transition-colors hover:bg-muted/55",
+        selected && "bg-primary/[0.07]",
+        isDragging && "opacity-40",
+      )}
+    >
+      <div className="relative flex shrink-0 flex-col items-center">
+        <span className={cn(
+          "z-10 flex size-9 items-center justify-center rounded-xl",
+          item.type === "travel" && "bg-sky-100 text-sky-700",
+          item.type === "lodging" && "bg-orange-100 text-orange-700",
+          item.type === "activity" && "bg-emerald-100 text-emerald-700",
+          item.type === "food" && "bg-rose-100 text-rose-700",
+        )}>
+          <Icon className="size-4" />
+        </span>
+        {!last ? <span className="absolute bottom-[-17px] top-8 w-px bg-border" /> : null}
+      </div>
+
+      <div className="min-w-0 flex-1 pb-2">
+        <div className="flex min-h-7 items-center justify-between gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{format(item.when, "h:mm a")} · {item.kindLabel}</span>
+          <ExternalLinkButton href={item.url} label={item.title} />
+        </div>
+        <button
+          type="button"
+          className="break-words text-left text-sm font-semibold leading-snug text-foreground hover:text-primary focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect();
+          }}
+        >
+          {item.title}
+        </button>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{compactItemMeta(item)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {item.type === "activity" && item.route ? <Badge variant="outline" className="text-[10px]">On route</Badge> : null}
+          {item.notes ? <span className="line-clamp-1 text-[11px] text-muted-foreground">{item.notes}</span> : null}
+        </div>
+
+        {canEdit ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t pt-1.5" onClick={(event) => event.stopPropagation()}>
+            {dragEnabled ? (
+              <button type="button" className="-ml-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Drag ${item.title}`} {...attributes} {...listeners}>
+                <PlannerDragHandle label={item.title} />
+              </button>
+            ) : null}
+            {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw as TimelineProps["segments"][number]} /> : null}
+            {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw as TimelineProps["stays"][number]} /> : null}
+            {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw as TimelineProps["activities"][number]} /> : null}
+            {item.type === "food" ? <FoodDialog tripId={tripId} canEdit={canEdit} food={item.raw as TimelineProps["food"][number]} /> : null}
+            <DeleteButton kind={item.type === "travel" ? "segment" : item.type} tripId={tripId} id={item.sourceId} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function TimelineDayColumn({
-  tripId,
-  canEdit,
-  day,
-}: {
-  tripId: string;
-  canEdit: boolean;
-  day: TimelineDayData;
-}) {
-  const dragEnabled = usePlannerDragEnabled();
-  const { setNodeRef, isOver } = useDroppable({ id: plannerDayDropId(day.key), disabled: !dragEnabled });
-  const groups = groupTimelineItems(day.items);
-
-  return (
-    <section
-      ref={setNodeRef}
-      className={`flex min-h-[28rem] flex-col rounded-lg border bg-card transition-colors ${isOver ? "border-primary bg-primary/5 ring-2 ring-primary/30" : ""}`}
-    >
-      <div className="grid gap-4 border-b p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{format(parseISO(day.key), "EEE")}</p>
-            <h3 className="text-lg font-semibold">{format(parseISO(day.key), "MMM d")}</h3>
-            <p className="text-xs text-muted-foreground">
-              {day.items.length} item{day.items.length === 1 ? "" : "s"}
-              {dragEnabled ? " · Drop items here" : ""}
-            </p>
-          </div>
-          <CalendarDays className="mt-1 size-4 text-muted-foreground" />
-        </div>
-      </div>
-      <div className="grid flex-1 content-start gap-4 p-4">
-        {day.items.length === 0 ? (
-          <SectionState
-            title="Nothing planned yet"
-            description="Use the Timeline header to add an item, or drop an idea onto this day."
-            className="px-3 py-4"
-          />
-        ) : groups.map((group) => (
-          <TimelineItemGroup key={group.label} tripId={tripId} canEdit={canEdit} group={group} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TimelineDayCard({
-  tripId,
-  canEdit,
-  day,
-  isOpen,
-  onToggle,
-}: {
-  tripId: string;
-  canEdit: boolean;
-  day: TimelineDayData;
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const dragEnabled = usePlannerDragEnabled();
-  const { setNodeRef, isOver } = useDroppable({ id: plannerDayDropId(day.key), disabled: !dragEnabled });
-  const groups = groupTimelineItems(day.items);
-
-  return (
-    <details
-      ref={setNodeRef}
-      open={isOpen}
-      className={`rounded-lg border bg-card transition-colors ${isOver ? "border-primary bg-primary/5 ring-2 ring-primary/30" : ""}`}
-    >
-      <summary
-        className="flex min-h-11 cursor-pointer list-none items-start justify-between gap-3 p-4"
-        onClick={(event) => {
-          event.preventDefault();
-          onToggle();
-        }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-muted-foreground">{dayLabel(day.key)}</h3>
-            <p className="text-xs text-muted-foreground">
-              {day.items.length} item{day.items.length === 1 ? "" : "s"}
-              {dragEnabled ? " · Drop items here" : ""}
-            </p>
-          </div>
-          <span className="rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground">
-            {format(parseISO(day.key), "EEE")}
-          </span>
-        </div>
-        <ChevronDown className={`mt-1 size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </summary>
-      <div className="grid gap-4 border-t p-4">
-        {day.items.length === 0 ? (
-          <SectionState
-            title="Nothing planned yet"
-            description="Use the Timeline header to add an item, or drag an idea onto this day."
-            className="px-4 py-4"
-          />
-        ) : groups.map((group) => (
-          <TimelineItemGroup key={group.label} tripId={tripId} canEdit={canEdit} group={group} />
-        ))}
-      </div>
-    </details>
-  );
-}
-
-function TimelineItemGroup({ tripId, canEdit, group }: { tripId: string; canEdit: boolean; group: TimelineGroup }) {
-  return (
-    <section className="grid gap-2">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Clock className="size-3.5" />
-        <span>{group.label}</span>
-      </div>
-      <div className="grid gap-3">
-        {group.items.map((item) => (
-          <TimelineItemRow key={item.id} tripId={tripId} canEdit={canEdit} item={item} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TimelineItemRow({ tripId, canEdit, item }: { tripId: string; canEdit: boolean; item: TimelineItem }) {
-  const dragEnabled = usePlannerDragEnabled();
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `timeline:${item.type}:${item.sourceId}`,
-    disabled: !dragEnabled,
-    data: {
-      source: "timeline",
-      id: item.sourceId,
-      label: item.title,
-      kind: item.type,
-      day: dayKey(item.when),
-      datetime: item.when.toISOString(),
-    },
-  });
-  const iconClass = item.type === "travel"
-    ? "mt-1 flex size-8 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300"
-    : item.type === "lodging"
-      ? "mt-1 flex size-8 items-center justify-center rounded-md bg-amber-500/12 text-amber-700 dark:text-amber-300"
-      : item.type === "activity"
-        ? "mt-1 flex size-8 items-center justify-center rounded-md bg-blue-500/12 text-blue-700 dark:text-blue-300"
-        : "mt-1 flex size-8 items-center justify-center rounded-md bg-pink-500/12 text-pink-700 dark:text-pink-300";
-
-  return (
-    <EntityRow
-      ref={setNodeRef}
-      className={`grid gap-3 bg-background p-3 ${isDragging ? "opacity-40" : ""}`}
-    >
-      <div className="flex items-start gap-2">
-        {dragEnabled ? (
-          <button
-            type="button"
-            className="-ml-2 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Drag ${item.title}`}
-            {...attributes}
-            {...listeners}
-          >
-            <PlannerDragHandle label={item.title} />
-          </button>
-        ) : null}
-        <span className={iconClass}>
-          {item.type === "travel" ? <Plane className="size-4" /> : item.type === "lodging" ? <Hotel className="size-4" /> : item.type === "activity" ? <Activity className="size-4" /> : <UtensilsCrossed className="size-4" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">{format(item.when, "h:mm a")}</span>
-            <Badge variant="secondary">{item.kindLabel}</Badge>
-            {item.type === "activity" && item.route ? <Badge variant="outline">route</Badge> : null}
-            <ExternalLinkButton href={item.url} label={item.title} />
-          </div>
-          <p className="mt-2 break-words text-sm font-semibold leading-snug text-foreground">{item.title}</p>
-          <EntityRowMeta className="mt-1 text-xs leading-relaxed">{compactItemMeta(item)}</EntityRowMeta>
-        </div>
-      </div>
-      {item.notes ? <EntityRowNotes className="mt-0 line-clamp-3 text-xs leading-relaxed text-foreground">{item.notes}</EntityRowNotes> : null}
-      {canEdit ? (
-        <EntityRowActions className="border-t pt-2">
-          {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw as TimelineProps["segments"][number]} /> : null}
-          {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw as TimelineProps["stays"][number]} /> : null}
-          {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw as TimelineProps["activities"][number]} /> : null}
-          {item.type === "food" ? <FoodDialog tripId={tripId} canEdit={canEdit} food={item.raw as TimelineProps["food"][number]} /> : null}
-          {item.type === "travel" ? <DeleteButton kind="segment" tripId={tripId} id={item.sourceId} /> : null}
-          {item.type === "lodging" ? <DeleteButton kind="lodging" tripId={tripId} id={item.sourceId} /> : null}
-          {item.type === "activity" ? <DeleteButton kind="activity" tripId={tripId} id={item.sourceId} /> : null}
-          {item.type === "food" ? <DeleteButton kind="food" tripId={tripId} id={item.sourceId} /> : null}
-        </EntityRowActions>
-      ) : null}
-    </EntityRow>
-  );
-}
-
-function groupTimelineItems(items: TimelineItem[]) {
-  const groupMap = new Map<TimelineGroup["label"], TimelineItem[]>([
-    ["Morning", []],
-    ["Afternoon", []],
-    ["Evening", []],
-  ]);
-
-  for (const item of items) {
-    groupMap.get(timeGroupLabel(item.when))?.push(item);
-  }
-
-  return [...groupMap.entries()]
-    .filter(([, groupItems]) => groupItems.length > 0)
-    .map(([label, groupItems]) => ({ label, items: groupItems }));
-}
-
-function timeGroupLabel(value: Date): TimelineGroup["label"] {
-  const hour = value.getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 17) return "Afternoon";
-  return "Evening";
-}
-
 function compactItemMeta(item: TimelineItem) {
   if (item.type === "travel") {
     const segment = item.raw as TimelineProps["segments"][number];
-    return `${segment.startLocationName} → ${segment.endLocationName}${segment.endDatetime ? ` · Ends ${format(dateValue(segment.endDatetime), "h:mm a")}` : ""}`;
+    return `${segment.startLocationName} → ${segment.endLocationName}${segment.endDatetime ? ` · arrives ${format(dateValue(segment.endDatetime), "h:mm a")}` : ""}`;
   }
-
   if (item.type === "lodging") {
     const stay = item.raw as TimelineProps["stays"][number];
-    return `${stay.name}${stay.checkOut ? ` · Check-out ${format(dateValue(stay.checkOut), "MMM d, h:mm a")}` : ""}`;
+    return stay.address || stay.name;
   }
-
-  const locatedItem = item.raw as TimelineProps["activities"][number] | TimelineProps["food"][number];
-  return locatedItem.name;
+  if (item.type === "activity") {
+    const activity = item.raw as TimelineProps["activities"][number];
+    return activity.address || activity.name;
+  }
+  const food = item.raw as TimelineProps["food"][number];
+  return food.address || food.name;
 }

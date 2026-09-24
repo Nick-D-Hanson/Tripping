@@ -3,26 +3,26 @@
 @import "mapbox-gl/dist/mapbox-gl.css";
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  --background: 60 20% 98%;
+  --foreground: 172 20% 18%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 172 20% 18%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 174 72% 29%;
+  --popover-foreground: 172 20% 18%;
+  --primary: 168 44% 25%;
   --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 42 88% 55%;
-  --accent-foreground: 240 5.9% 10%;
+  --secondary: 120 12% 96%;
+  --secondary-foreground: 168 28% 24%;
+  --muted: 120 12% 96%;
+  --muted-foreground: 162 8% 48%;
+  --accent: 20 52% 52%;
+  --accent-foreground: 0 0% 100%;
   --destructive: 0 72.22% 50.59%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 174 72% 29%;
-  --radius: 0.5rem;
+  --border: 105 12% 90%;
+  --input: 105 12% 88%;
+  --ring: 168 44% 35%;
+  --radius: 0.75rem;
 }
 
 @theme inline {
@@ -80,6 +80,34 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family: var(--font-sans);
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.18);
+}
+
+.trip-card-art {
+  background-color: #dbe0c8;
+  background-image:
+    radial-gradient(circle at 72% 22%, rgba(251, 251, 248, 0.85) 0 8%, transparent 8.5%),
+    linear-gradient(145deg, #9db9a7 0%, #dbe0c8 52%, #d6ab88 100%);
+}
+
+.trip-card-art::before,
+.trip-card-art::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -42% 18%;
+  height: 88%;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.48);
+  transform: rotate(-13deg);
+}
+
+.trip-card-art::after {
+  inset: 45% -18% auto 43%;
+  height: 52%;
+  transform: rotate(19deg);
 }
 
 .mapboxgl-popup-content {

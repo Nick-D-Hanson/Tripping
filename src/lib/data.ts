@@ -1,4 +1,4 @@
-import { asc, eq, or, sql } from "drizzle-orm";
+import { asc, desc, eq, or, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -29,7 +29,7 @@ export async function getDashboardTrips() {
     .from(trips)
     .innerJoin(tripMembers, eq(trips.id, tripMembers.tripId))
     .where(membershipFilter)
-    .orderBy(asc(trips.startDate));
+    .orderBy(desc(trips.startDate));
 }
 
 const getTripAccessContext = cache(async (tripId: string) => {
@@ -118,6 +118,9 @@ export async function getTripPageData(tripId: string) {
       .filter((member) => member.userId)
       .map((member) => [member.userId!, member.email]),
   );
+  const memberDisplayById = new Map(
+    members.map((member) => [member.id, member.email ?? member.userId ?? "Traveler"]),
+  );
 
   const packingWithCreators = packing.map((item) => {
     const creatorDisplay =
@@ -127,6 +130,10 @@ export async function getTripPageData(tripId: string) {
     return {
       ...item,
       creatorInitials: initialsFromValue(creatorDisplay),
+      assigneeLabel: item.assignedToMemberId ? memberDisplayById.get(item.assignedToMemberId) ?? "Traveler" : null,
+      assigneeInitials: item.assignedToMemberId
+        ? initialsFromValue(memberDisplayById.get(item.assignedToMemberId) ?? "Traveler")
+        : null,
     };
   });
 
@@ -174,6 +181,9 @@ export async function getTripPackingData(tripId: string) {
       .filter((member) => member.userId)
       .map((member) => [member.userId!, member.email]),
   );
+  const memberDisplayById = new Map(
+    members.map((member) => [member.id, member.email ?? member.userId ?? "Traveler"]),
+  );
 
   return packing.map((item) => {
     const creatorDisplay =
@@ -183,6 +193,10 @@ export async function getTripPackingData(tripId: string) {
     return {
       ...item,
       creatorInitials: initialsFromValue(creatorDisplay),
+      assigneeLabel: item.assignedToMemberId ? memberDisplayById.get(item.assignedToMemberId) ?? "Traveler" : null,
+      assigneeInitials: item.assignedToMemberId
+        ? initialsFromValue(memberDisplayById.get(item.assignedToMemberId) ?? "Traveler")
+        : null,
     };
   });
 }

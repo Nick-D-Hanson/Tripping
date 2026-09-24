@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveActivity, saveFood, saveIdeaBucketItem, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
 import { actionErrorMessage } from "@/components/trips/mutation-feedback";
+import { FoodCategoryControl } from "@/components/trips/food-category-control";
 import { LocationSearch } from "@/components/trips/location-search";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -247,7 +248,7 @@ export function LodgingDialog({
       <DialogTrigger asChild>
         <Button variant={stay ? "ghost" : "secondary"} size={stay ? "sm" : "default"} className={stay ? undefined : "w-full sm:w-auto"}>
           {stay ? <Edit /> : <Plus />}
-          {stay ? "Edit" : idea ? "Plan" : "Lodging"}
+          {stay ? "Edit" : idea ? "Add to a day" : "Lodging"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -348,7 +349,7 @@ export function ActivityDialog({
       <DialogTrigger asChild>
         <Button variant={activity ? "ghost" : "secondary"} size={activity ? "sm" : "default"} className={activity ? undefined : "w-full sm:w-auto"}>
           {activity ? <Edit /> : <Plus />}
-          {activity ? "Edit" : idea ? "Plan" : "Activity"}
+          {activity ? "Edit" : idea ? "Add to a day" : "Activity"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -415,6 +416,7 @@ export function FoodDialog({
     lat: number | null;
     lng: number | null;
     datetime: Date;
+    category: string;
     notes: string | null;
   };
   idea?: IdeaDraft;
@@ -449,7 +451,7 @@ export function FoodDialog({
       <DialogTrigger asChild>
         <Button variant={food ? "ghost" : "secondary"} size={food ? "sm" : "default"} className={food ? undefined : "w-full sm:w-auto"}>
           {food ? <Edit /> : <Plus />}
-          {food ? "Edit" : idea ? "Plan" : "Food"}
+          {food ? "Edit" : idea ? "Add to a day" : "Food"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -460,6 +462,7 @@ export function FoodDialog({
         <form action={action} className="grid gap-4">
           <FormError message={error} />
           {idea ? <input name="convertedIdeaId" type="hidden" value={idea.id} /> : null}
+          <FoodCategoryControl defaultValue={food?.category === "coffee" ? "coffee" : "meal"} />
           <Field>
             <FieldLabel>Display title</FieldLabel>
             <Input name="title" defaultValue={food?.title ?? idea?.description ?? ""} placeholder="Brunch at Snooze" />
@@ -501,6 +504,7 @@ export function IdeaBucketItemDialog({
   tripId,
   canEdit,
   item,
+  triggerLabel,
 }: BaseDialogProps & {
   item?: {
     id: string;
@@ -513,6 +517,7 @@ export function IdeaBucketItemDialog({
     url: string | null;
     notes: string | null;
   };
+  triggerLabel?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -544,7 +549,7 @@ export function IdeaBucketItemDialog({
       <DialogTrigger asChild>
         <Button variant={item ? "ghost" : "secondary"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
           {item ? <Edit /> : <Plus />}
-          {item ? "Edit" : "Idea"}
+          {item ? "Edit" : triggerLabel ?? "Idea"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -605,14 +610,20 @@ export function PackingItemDialog({
   tripId,
   canEdit,
   item,
+  members,
+  triggerLabel,
 }: BaseDialogProps & {
   item?: {
     id: string;
     name: string;
+    category: string;
     quantity: string | null;
+    assignedToMemberId: string | null;
     notes: string | null;
     isPacked: boolean;
   };
+  members: Array<{ id: string; label: string }>;
+  triggerLabel?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -644,7 +655,7 @@ export function PackingItemDialog({
       <DialogTrigger asChild>
         <Button variant={item ? "ghost" : "secondary"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
           {item ? <Edit /> : <Plus />}
-          {item ? "Edit" : "Item"}
+          {item ? "Edit" : triggerLabel ?? "Item"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -659,8 +670,31 @@ export function PackingItemDialog({
             <Input name="name" defaultValue={item?.name ?? ""} placeholder="Passport" required />
           </Field>
           <Field>
+            <FieldLabel required>Category</FieldLabel>
+            <Select name="category" defaultValue={item?.category ?? "Other"}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Documents">Documents</SelectItem>
+                <SelectItem value="Clothing">Clothing</SelectItem>
+                <SelectItem value="Toiletries">Toiletries</SelectItem>
+                <SelectItem value="Gear">Gear</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field>
             <FieldLabel>Quantity</FieldLabel>
             <Input name="quantity" defaultValue={item?.quantity ?? ""} placeholder="2 pairs" />
+          </Field>
+          <Field>
+            <FieldLabel>Traveler assignment</FieldLabel>
+            <Select name="assignedToMemberId" defaultValue={item?.assignedToMemberId ?? "unassigned"}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Anyone</SelectItem>
+                {members.map((member) => <SelectItem key={member.id} value={member.id}>{member.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Field>
           <Field>
             <FieldLabel>Notes</FieldLabel>

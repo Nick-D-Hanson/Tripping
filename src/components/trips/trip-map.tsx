@@ -6,27 +6,40 @@ import { Info } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SectionState } from "@/components/ui/section-state";
 import { fmtDateTime } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 
-type Point = {
+export type TripMapPoint = {
   id: string;
   kind: "travel" | "lodging" | "activity" | "food" | "idea";
   label: string;
   lng: number;
   lat: number;
+  day?: string;
+  endDay?: string;
   detail?: string;
   detailDateTime?: string | Date;
   detailPrefix?: string;
+  address?: string | null;
+  notes?: string | null;
+  url?: string | null;
+  timelineItemId?: string;
 };
 
 type TripMapProps = {
   tripId: string;
   token?: string;
   styleUrl?: string;
-  points: Point[];
+  points: TripMapPoint[];
   fallbackLines: Array<{
     kind: "drive" | "flight";
     coordinates: [[number, number], [number, number]];
   }>;
+  className?: string;
+  selectedPointId?: string | null;
+  focusPointId?: string | null;
+  onSelectPoint?: (point: TripMapPoint) => void;
+  visible?: boolean;
+  showRoutes?: boolean;
 };
 
 type RouteFeature = GeoJSON.Feature<
@@ -79,7 +92,7 @@ function fallbackGeoJson(lines: TripMapProps["fallbackLines"]): RouteGeoJson {
   };
 }
 
-function buildPopupContent(point: Point) {
+function buildPopupContent(point: TripMapPoint) {
   const wrapper = document.createElement("div");
 
   const title = document.createElement("strong");
@@ -104,18 +117,24 @@ function buildPopupContent(point: Point) {
   return wrapper;
 }
 
-export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: TripMapProps) {
+export function TripMap({ tripId, token, styleUrl, points, fallbackLines, className, selectedPointId, focusPointId, onSelectPoint, visible = true, showRoutes = true }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const routeRef = useRef<RouteGeoJson>(fallbackGeoJson(fallbackLines));
-  const [route, setRoute] = useState<RouteGeoJson>(() => fallbackGeoJson(fallbackLines));
+  const [route, setRoute] = useState<RouteGeoJson>(() => fallbackGeoJson(showRoutes ? fallbackLines : []));
 
-  const fallback = useMemo(() => fallbackGeoJson(fallbackLines), [fallbackLines]);
+  const fallback = useMemo(() => fallbackGeoJson(showRoutes ? fallbackLines : []), [fallbackLines, showRoutes]);
   const firstPoint = points[0];
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!showRoutes) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetch(`/api/trips/${tripId}/route`)
       .then((response) => (response.ok ? response.json() : null))
@@ -129,11 +148,17 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
     return () => {
       cancelled = true;
     };
-  }, [tripId, fallback]);
+  }, [tripId, fallback, showRoutes]);
 
   useEffect(() => {
     routeRef.current = route;
   }, [route]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const frame = window.requestAnimationFrame(() => mapRef.current?.resize());
+    return () => window.cancelAnimationFrame(frame);
+  }, [visible]);
 
   useEffect(() => {
     if (!containerRef.current || !token) return;
@@ -149,6 +174,8 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
 
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showCompass: false }), "top-right");
     mapRef.current = map;
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
 
     map.on("error", () => {
       if (map.getStyle()?.sprite || map.getStyle()?.sources?.composite) {
@@ -195,6 +222,7 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
     });
 
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -218,14 +246,27 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
         .setLngLat([point.lng, point.lat])
         .setPopup(new mapboxgl.Popup({ offset: 20 }).setDOMContent(buildPopupContent(point)))
         .addTo(map);
+      const element = marker.getElement();
+      element.setAttribute("aria-label", `Show details for ${point.label}`);
+      element.setAttribute("role", "button");
+      element.tabIndex = 0;
+      element.style.filter = selectedPointId === point.id ? "drop-shadow(0 0 0.35rem rgba(36, 94, 83, 0.6))" : "";
+      const selectPoint = () => onSelectPoint?.(point);
+      element.addEventListener("click", selectPoint);
+      element.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") selectPoint();
+      });
       return marker;
     });
 
-    if (points.length) {
+    const focusPoint = focusPointId ? points.find((point) => point.id === focusPointId) : null;
+    if (focusPoint) {
+      map.easeTo({ center: [focusPoint.lng, focusPoint.lat], zoom: 12, duration: 600 });
+    } else if (points.length) {
       const bounds = points.reduce((acc, point) => acc.extend([point.lng, point.lat]), new LngLatBounds([points[0].lng, points[0].lat], [points[0].lng, points[0].lat]));
       map.fitBounds(bounds, { padding: 70, maxZoom: 12, duration: 600 });
     }
-  }, [points]);
+  }, [focusPointId, onSelectPoint, points, selectedPointId]);
 
   if (!token) {
     return (
@@ -239,5 +280,5 @@ export function TripMap({ tripId, token, styleUrl, points, fallbackLines }: Trip
     );
   }
 
-  return <div ref={containerRef} className="h-[320px] w-full overflow-hidden rounded-lg border sm:h-[420px] md:h-[560px]" />;
+  return <div ref={containerRef} className={cn("h-[480px] w-full overflow-hidden bg-muted md:h-full md:min-h-[680px]", className)} />;
 }

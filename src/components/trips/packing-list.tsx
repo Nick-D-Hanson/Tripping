@@ -1,112 +1,131 @@
 "use client";
 
-import { Check, ChevronDown, Package2 } from "lucide-react";
-import { useState } from "react";
+import { Check, Package2, UserRound } from "lucide-react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { PackingItemDialog } from "@/components/trips/item-dialogs";
 import { TogglePackingButton } from "@/components/trips/toggle-packing-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EntityRow, EntityRowActions, EntityRowAvatar, EntityRowBody, EntityRowHeader, EntityRowNotes, EntityRowTitle } from "@/components/ui/entity-row";
 import { SectionState } from "@/components/ui/section-state";
 import { cn } from "@/lib/utils";
+
+type PackingItem = {
+  id: string;
+  name: string;
+  category: string;
+  quantity: string | null;
+  assignedToMemberId: string | null;
+  assigneeLabel: string | null;
+  assigneeInitials: string | null;
+  notes: string | null;
+  isPacked: boolean;
+  createdByUserId: string;
+  createdAt: Date;
+  creatorInitials: string;
+};
 
 type PackingListProps = {
   tripId: string;
   canEdit: boolean;
-  items: Array<{
-    id: string;
-    name: string;
-    quantity: string | null;
-    notes: string | null;
-    isPacked: boolean;
-    createdByUserId: string;
-    createdAt: Date;
-    creatorInitials: string;
-  }>;
+  items: PackingItem[];
+  members: Array<{ id: string; label: string }>;
+  className?: string;
 };
 
-export function PackingList({ tripId, canEdit, items }: PackingListProps) {
-  const [expanded, setExpanded] = useState(false);
+const categoryOrder = ["Documents", "Clothing", "Toiletries", "Gear", "Other"];
+
+export function PackingList({ tripId, canEdit, items, members, className }: PackingListProps) {
   const sortedItems = [...items].sort((a, b) => {
     if (a.isPacked !== b.isPacked) return a.isPacked ? 1 : -1;
-    return a.createdAt.getTime() - b.createdAt.getTime();
+    return a.name.localeCompare(b.name);
   });
-
+  const categories = [
+    ...categoryOrder.filter((category) => sortedItems.some((item) => item.category === category)),
+    ...[...new Set(sortedItems.map((item) => item.category))].filter((category) => !categoryOrder.includes(category)).sort(),
+  ];
   const packedCount = items.filter((item) => item.isPacked).length;
+  const progress = items.length ? Math.round((packedCount / items.length) * 100) : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <section className={cn("min-h-[620px] overflow-auto bg-background px-4 py-6 sm:px-8 sm:py-8", className)} aria-label="Trip packing list">
+      <div className="mx-auto w-full max-w-4xl">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>Packing List</CardTitle>
-            <CardDescription>
-              {packedCount} of {items.length} packed
-            </CardDescription>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Before you go</p>
+            <h2 className="mt-1 font-serif text-2xl font-medium tracking-tight">Packing list</h2>
+            <p className="mt-2 text-sm text-muted-foreground">One shared checklist for the whole trip.</p>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              <ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
-              {expanded ? "Collapse" : "Expand"}
-            </Button>
-            <PackingItemDialog tripId={tripId} canEdit={canEdit} />
+          {canEdit ? <PackingItemDialog tripId={tripId} canEdit={canEdit} members={members} triggerLabel="Add item" /> : null}
+        </header>
+
+        <div className="mt-6 rounded-xl border bg-card p-4 sm:p-5" aria-label={`${progress}% packed`}>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <strong>{packedCount} of {items.length} packed</strong>
+            <span className="text-muted-foreground">{progress}% ready</span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${progress}%` }} />
           </div>
         </div>
-      </CardHeader>
-      {expanded ? <CardContent className="grid gap-3">
-        {sortedItems.length === 0 ? (
+
+        {items.length === 0 ? (
           <SectionState
-            title="No packing items yet"
-            description="Start a shared checklist for the trip so everyone knows what still needs packing."
+            title="Your packing list is ready"
+            description={canEdit ? "Add the first item, assign it if needed, and keep everyone in sync." : "No packing items have been added yet."}
+            icon={Package2}
+            className="mt-6 min-h-72 bg-card"
           />
         ) : (
-          sortedItems.map((item) => (
-            <EntityRow key={item.id} className={cn("flex items-start gap-3", item.isPacked && "bg-muted/30")}>
-              {canEdit ? (
-                <TogglePackingButton tripId={tripId} id={item.id} packed={item.isPacked} />
-              ) : (
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-md border",
-                    item.isPacked ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "text-muted-foreground",
-                  )}
-                  aria-hidden="true"
-                >
-                  {item.isPacked ? <Check className="size-4" /> : <Package2 className="size-4" />}
-                </span>
-              )}
-
-              <EntityRowBody>
-                <EntityRowHeader>
-                  <div className="min-w-0">
-                    <EntityRowTitle>
-                      <p className={cn("font-medium", item.isPacked && "text-muted-foreground line-through")}>{item.name}</p>
-                      {item.quantity ? <Badge variant="secondary">{item.quantity}</Badge> : null}
-                    </EntityRowTitle>
-                    {item.notes ? <EntityRowNotes>{item.notes}</EntityRowNotes> : null}
+          <div className="mt-7 grid gap-7">
+            {categories.map((category) => {
+              const categoryItems = sortedItems.filter((item) => item.category === category);
+              return (
+                <section key={category}>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{category}</h3>
+                    <Badge variant="secondary">{categoryItems.length}</Badge>
                   </div>
+                  <div className="overflow-hidden rounded-xl border bg-card">
+                    {categoryItems.map((item) => (
+                      <div key={item.id} className={cn("flex min-h-16 items-start gap-3 border-b p-3 last:border-b-0 sm:items-center", item.isPacked && "bg-muted/35")}>
+                        {canEdit ? (
+                          <TogglePackingButton tripId={tripId} id={item.id} packed={item.isPacked} />
+                        ) : (
+                          <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg border", item.isPacked ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
+                            {item.isPacked ? <Check className="size-4" /> : <Package2 className="size-4" />}
+                          </span>
+                        )}
 
-                  <EntityRowActions>
-                    <EntityRowAvatar label={`Added by ${item.creatorInitials}`}>
-                      {item.creatorInitials}
-                    </EntityRowAvatar>
-                    {canEdit ? <PackingItemDialog tripId={tripId} canEdit={canEdit} item={item} /> : null}
-                    {canEdit ? <DeleteButton kind="packing" tripId={tripId} id={item.id} /> : null}
-                  </EntityRowActions>
-                </EntityRowHeader>
-              </EntityRowBody>
-            </EntityRow>
-          ))
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className={cn("text-sm font-semibold", item.isPacked && "text-muted-foreground line-through")}>{item.name}</p>
+                            {item.quantity ? <Badge variant="outline">Qty {item.quantity}</Badge> : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {item.assigneeLabel ? (
+                              <span className="inline-flex items-center gap-1.5" title={item.assigneeLabel}>
+                                <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[8px] font-bold text-primary">{item.assigneeInitials}</span>
+                                {item.assigneeLabel}
+                              </span>
+                            ) : <span className="inline-flex items-center gap-1"><UserRound className="size-3" /> Anyone</span>}
+                            {item.notes ? <span className="line-clamp-1">{item.notes}</span> : null}
+                          </div>
+                        </div>
+
+                        {canEdit ? (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <PackingItemDialog tripId={tripId} canEdit={canEdit} item={item} members={members} />
+                            <DeleteButton kind="packing" tripId={tripId} id={item.id} />
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         )}
-      </CardContent> : null}
-    </Card>
+      </div>
+    </section>
   );
 }
