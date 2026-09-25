@@ -214,12 +214,12 @@ export function TripPlannerWorkspace({
         })}
       </div>
 
-      <div
-        className="relative min-h-[560px] min-w-0 overflow-hidden"
-        style={{ height: "clamp(560px, calc(100dvh - 18.75rem), 780px)" }}
-      >
+      <div className="relative min-w-0 overflow-visible md:h-[clamp(560px,calc(100dvh-18.75rem),780px)] md:min-h-[560px] md:overflow-hidden">
         {section === "itinerary" ? (
-          <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(25rem,42%)_1fr]">
+          <div className={cn(
+            "grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:h-full md:grid-cols-[minmax(25rem,42%)_1fr]",
+            mobileView === "map" && "h-[calc(100dvh-10rem)] min-h-[560px]",
+          )}>
             <Timeline
               tripId={tripId} canEdit={canEdit} tripStartDate={tripStartDate} tripEndDate={tripEndDate}
               segments={segments} stays={stays} activities={activities} food={food}
@@ -239,7 +239,10 @@ export function TripPlannerWorkspace({
         ) : null}
 
         {section === "ideas" ? (
-          <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(22rem,38%)_1fr]">
+          <div className={cn(
+            "grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:h-full md:grid-cols-[minmax(22rem,38%)_1fr]",
+            mobileView === "map" && "h-[calc(100dvh-10rem)] min-h-[560px]",
+          )}>
             <IdeaBucket
               tripId={tripId} canEdit={canEdit} items={ideas}
               scheduleControls={canEdit ? <IdeaScheduleStrip startDate={tripStartDate} endDate={tripEndDate} /> : null}
@@ -255,7 +258,7 @@ export function TripPlannerWorkspace({
           </div>
         ) : null}
 
-        {section === "packing" ? <PackingList tripId={tripId} canEdit={canEdit} items={packingItems} members={members} className="h-full" /> : null}
+        {section === "packing" ? <PackingList tripId={tripId} canEdit={canEdit} items={packingItems} members={members} className="md:h-full" /> : null}
 
         {mapVisible ? (
           <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-xl border bg-card/95 p-1.5 shadow-xl backdrop-blur md:hidden" role="group" aria-label={`${section} view`}>

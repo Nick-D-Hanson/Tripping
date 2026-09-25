@@ -241,7 +241,7 @@ export function Timeline({
         {canEdit ? <IdeaBucketDropTarget /> : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
+      <div className="min-h-0 flex-1 overflow-visible p-4 sm:p-5 md:overflow-auto">
         {visibleDay ? (
           <TimelineDay
             day={visibleDay}
