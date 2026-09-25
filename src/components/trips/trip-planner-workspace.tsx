@@ -185,8 +185,8 @@ export function TripPlannerWorkspace({
   const mapVisible = section !== "packing";
 
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Trip planner">
-      <div className="flex h-12 items-center gap-0 border-b px-2 sm:gap-6 sm:px-6" role="tablist" aria-label="Trip sections">
+    <section className="w-full min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Trip planner">
+      <div className="grid min-h-14 grid-cols-3 gap-1 border-b bg-muted/35 p-1.5 sm:flex sm:h-12 sm:min-h-0 sm:items-center sm:gap-6 sm:bg-transparent sm:px-6 sm:py-0" role="tablist" aria-label="Trip sections">
         {([
           { id: "itinerary" as const, label: "Itinerary", icon: CalendarDays },
           { id: "ideas" as const, label: "Ideas", icon: Lightbulb, count: ideas.length },
@@ -200,26 +200,32 @@ export function TripPlannerWorkspace({
               type="button"
               role="tab"
               aria-selected={active}
-              className={cn("relative flex h-full min-w-0 flex-1 items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary sm:flex-none sm:justify-start sm:gap-2 sm:text-sm", active && "text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary")}
+              className={cn(
+                "relative flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-card hover:text-primary sm:h-full sm:flex-none sm:justify-start sm:gap-2 sm:rounded-none sm:px-0 sm:py-0 sm:text-sm sm:hover:bg-transparent",
+                active && "bg-card text-primary shadow-sm ring-1 ring-border sm:bg-transparent sm:shadow-none sm:ring-0 sm:after:absolute sm:after:inset-x-0 sm:after:bottom-0 sm:after:h-0.5 sm:after:bg-primary",
+              )}
               onClick={() => changeSection(tab.id)}
             >
-              <Icon className="size-4 sm:hidden" />
-              {tab.label}
+              <Icon className="size-3.5 shrink-0 sm:hidden" />
+              <span className="truncate">{tab.label}</span>
               {tab.count != null ? <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{tab.count}</span> : null}
             </button>
           );
         })}
       </div>
 
-      <div className="relative min-h-[620px] md:h-[calc(100dvh-15.5rem)] md:min-h-[680px] md:max-h-[860px]">
+      <div
+        className="relative min-h-[560px] min-w-0 overflow-hidden"
+        style={{ height: "clamp(560px, calc(100dvh - 18.75rem), 780px)" }}
+      >
         {section === "itinerary" ? (
-          <div className="grid h-full min-h-[620px] md:min-h-[680px] md:grid-cols-[minmax(25rem,42%)_1fr]">
+          <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(25rem,42%)_1fr]">
             <Timeline
               tripId={tripId} canEdit={canEdit} tripStartDate={tripStartDate} tripEndDate={tripEndDate}
               segments={segments} stays={stays} activities={activities} food={food}
               activeDayKey={activeDayKey} onActiveDayChange={changeDay}
               selectedItemId={selectedItemId} onSelectItem={selectTimelineItem}
-              className={cn("border-r", mobileView === "map" && "hidden md:flex")}
+              className={cn("min-w-0 border-r", mobileView === "map" && "hidden md:flex")}
             />
             <PlannerMapPanel
               className={mobileView === "list" ? "hidden md:block" : undefined}
@@ -233,11 +239,11 @@ export function TripPlannerWorkspace({
         ) : null}
 
         {section === "ideas" ? (
-          <div className="grid h-full min-h-[620px] md:min-h-[680px] md:grid-cols-[minmax(22rem,38%)_1fr]">
+          <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(22rem,38%)_1fr]">
             <IdeaBucket
               tripId={tripId} canEdit={canEdit} items={ideas}
               scheduleControls={canEdit ? <IdeaScheduleStrip startDate={tripStartDate} endDate={tripEndDate} /> : null}
-              className={cn("border-r", mobileView === "map" && "hidden md:flex")}
+              className={cn("min-w-0 border-r", mobileView === "map" && "hidden md:flex")}
             />
             <PlannerMapPanel
               className={mobileView === "list" ? "hidden md:block" : undefined}
@@ -252,11 +258,11 @@ export function TripPlannerWorkspace({
         {section === "packing" ? <PackingList tripId={tripId} canEdit={canEdit} items={packingItems} members={members} className="h-full" /> : null}
 
         {mapVisible ? (
-          <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 rounded-xl border bg-white p-1 shadow-xl md:hidden" role="group" aria-label={`${section} view`}>
-            <Button type="button" size="sm" variant={mobileView === "list" ? "primary" : "ghost"} className="h-11 rounded-lg" onClick={() => setMobileView("list")}>
+          <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-xl border bg-card/95 p-1.5 shadow-xl backdrop-blur md:hidden" role="group" aria-label={`${section} view`}>
+            <Button type="button" size="sm" variant={mobileView === "list" ? "primary" : "outline"} className="h-11 min-w-24 rounded-lg text-foreground data-[active=true]:text-primary-foreground" data-active={mobileView === "list"} aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>
               <List className="size-4" /> {section === "ideas" ? "Ideas" : "Itinerary"}
             </Button>
-            <Button type="button" size="sm" variant={mobileView === "map" ? "primary" : "ghost"} className="h-11 rounded-lg" onClick={() => setMobileView("map")}>
+            <Button type="button" size="sm" variant={mobileView === "map" ? "primary" : "outline"} className="h-11 min-w-24 rounded-lg text-foreground data-[active=true]:text-primary-foreground" data-active={mobileView === "map"} aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}>
               <MapIcon className="size-4" /> Map
             </Button>
           </div>
@@ -289,7 +295,7 @@ function PlannerMapPanel({
       <TripMap
         tripId={tripId} token={token} styleUrl={styleUrl} points={points} fallbackLines={fallbackLines}
         selectedPointId={selectedPoint?.id} focusPointId={focusPointId} onSelectPoint={onSelectPoint}
-        visible={visible} showRoutes={showRoutes} className="h-full min-h-[620px] border-0 md:min-h-[680px]"
+        visible={visible} showRoutes={showRoutes} className="h-full min-h-0 border-0"
       />
       <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-lg bg-white/92 px-3 py-2 text-xs font-semibold text-foreground shadow-md backdrop-blur">
         <span className={cn("size-2 rounded-full", showRoutes ? "bg-emerald-500" : "bg-violet-500")} />{chip}

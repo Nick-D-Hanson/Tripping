@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const plannerActive = pathname.startsWith("/trips/") && pathname !== "/trips/new";
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="flex min-h-dvh bg-background sm:h-dvh sm:overflow-hidden">
       <aside className="sticky top-0 z-50 hidden h-dvh w-[76px] shrink-0 flex-col items-center border-r bg-card px-3 py-6 sm:flex">
         <Link
           href="/trips"
@@ -48,8 +48,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
-        <header className="sticky top-0 z-40 flex h-15 items-center justify-between gap-4 border-b bg-card/95 px-4 backdrop-blur sm:h-[76px] sm:px-7">
+      <div className="min-w-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:flex sm:h-dvh sm:flex-col sm:overflow-hidden sm:pb-0">
+        <header className="sticky top-0 z-40 flex h-15 shrink-0 items-center justify-between gap-4 border-b bg-card/95 px-4 backdrop-blur sm:h-[76px] sm:px-7">
           <div className="flex min-w-0 items-center gap-3 text-xs font-semibold sm:text-sm">
             <Link href="/trips" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:inline">
               Workspace
@@ -64,7 +64,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             + New trip
           </Link>
         </header>
-        {children}
+        <div className="min-h-0 flex-1 sm:overflow-y-auto">
+          {children}
+        </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-3 border-t bg-card/95 px-4 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(25,55,47,0.08)] backdrop-blur sm:hidden" aria-label="Mobile navigation">

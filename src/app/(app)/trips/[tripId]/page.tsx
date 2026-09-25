@@ -46,7 +46,7 @@ async function TripDetailContent({
     <main className="mx-auto grid w-full max-w-[1500px] gap-6 px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
       {noticeMessage ? <Notice variant="success">{noticeMessage}</Notice> : null}
 
-      <section className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <section className="flex flex-col gap-5 md:sticky md:top-0 md:z-30 md:-mx-6 md:bg-background/95 md:px-6 md:py-2 md:backdrop-blur lg:-mx-8 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">{new Date(trip.startDate) > new Date() ? "Upcoming trip" : "Your trip"}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2.5">

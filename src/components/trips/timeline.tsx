@@ -216,7 +216,7 @@ export function Timeline({
   const visibleDay = days.find((day) => day.key === selectedDayKey) ?? days[0];
 
   return (
-    <section className={cn("flex min-h-0 flex-col bg-card", className)} aria-label="Trip itinerary">
+    <section className={cn("flex min-h-0 min-w-0 flex-col bg-card", className)} aria-label="Trip itinerary">
       <div className="shrink-0 border-b px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
