@@ -3,7 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteActivity, deleteFood, deleteIdeaBucketItem, deleteLodging, deletePackingItem, deleteSegment, removeMember } from "@/app/actions";
+import { deleteActivity, deleteFood, deleteIdeaBucketItem, deleteLodging, deletePackingItem, deleteSegment, deleteTripLink, removeMember } from "@/app/actions";
 import { actionErrorMessage } from "@/components/trips/mutation-feedback";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast-provider";
@@ -15,6 +15,7 @@ type DeleteButtonProps =
   | { kind: "food"; tripId: string; id: string; className?: string }
   | { kind: "idea"; tripId: string; id: string; className?: string }
   | { kind: "packing"; tripId: string; id: string; className?: string }
+  | { kind: "link"; tripId: string; id: string; className?: string }
   | { kind: "member"; tripId: string; id: string; className?: string };
 
 export function DeleteButton(props: DeleteButtonProps) {
@@ -40,6 +41,7 @@ export function DeleteButton(props: DeleteButtonProps) {
             if (props.kind === "food") await deleteFood(props.tripId, props.id);
             if (props.kind === "idea") await deleteIdeaBucketItem(props.tripId, props.id);
             if (props.kind === "packing") await deletePackingItem(props.tripId, props.id);
+            if (props.kind === "link") await deleteTripLink(props.tripId, props.id);
             if (props.kind === "member") await removeMember(props.tripId, props.id);
             router.refresh();
             toast({

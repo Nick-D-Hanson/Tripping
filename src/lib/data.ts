@@ -3,9 +3,9 @@ import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db";
-import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripLinks, tripMembers, trips } from "@/db/schema";
 import { getCurrentUser, requireUser } from "@/lib/auth/server";
-import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripPackingTag } from "@/lib/cache-tags";
+import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripLinksTag, tripPackingTag } from "@/lib/cache-tags";
 import { claimEmailInvites, getTripRole, userCanOpenTrip } from "@/lib/permissions";
 import { initialsFromValue } from "@/lib/utils";
 
@@ -103,14 +103,23 @@ async function getTripIdeaBucketItems(tripId: string) {
   return getDb().select().from(ideaBucketItems).where(eq(ideaBucketItems.tripId, tripId)).orderBy(asc(ideaBucketItems.kind), asc(ideaBucketItems.createdAt));
 }
 
+async function getTripLinks(tripId: string) {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(tripLinksTag(tripId));
+
+  return getDb().select().from(tripLinks).where(eq(tripLinks.tripId, tripId)).orderBy(asc(tripLinks.title));
+}
+
 export async function getTripPageData(tripId: string) {
-  const [{ user, role }, trip, { segments, stays, activities: acts, food: foodItems }, members, packing, ideas] = await Promise.all([
+  const [{ user, role }, trip, { segments, stays, activities: acts, food: foodItems }, members, packing, ideas, links] = await Promise.all([
     getTripAccessContext(tripId),
     getTripCoreRecord(tripId),
     getTripItineraryData(tripId),
     getTripMembers(tripId),
     getTripPackingItems(tripId),
     getTripIdeaBucketItems(tripId),
+    getTripLinks(tripId),
   ]);
 
   const memberEmailByUserId = new Map(
@@ -148,7 +157,18 @@ export async function getTripPageData(tripId: string) {
     };
   });
 
-  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user, packingItems: packingWithCreators, ideaBucketItems: ideasWithCreators };
+  const linksWithCreators = links.map((item) => {
+    const creatorDisplay =
+      memberEmailByUserId.get(item.createdByUserId) ||
+      (item.createdByUserId === user.id ? user.name ?? user.email ?? user.id : item.createdByUserId);
+
+    return {
+      ...item,
+      creatorInitials: initialsFromValue(creatorDisplay),
+    };
+  });
+
+  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user, packingItems: packingWithCreators, ideaBucketItems: ideasWithCreators, tripLinks: linksWithCreators };
 }
 
 export async function getTripShellData(tripId: string) {

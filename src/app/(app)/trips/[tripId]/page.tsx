@@ -37,7 +37,7 @@ async function TripDetailContent({
   searchParams: Promise<{ notice?: string | string[] }>;
 }) {
   const { tripId } = await params;
-  const { trip, segments, stays, activities, food, members, role, packingItems, ideaBucketItems } = await getTripPageData(tripId);
+  const { trip, segments, stays, activities, food, members, role, packingItems, ideaBucketItems, tripLinks } = await getTripPageData(tripId);
   const noticeMessage = tripNoticeMessage((await searchParams).notice);
   const editable = canEdit(role);
   const manageable = canManage(role);
@@ -101,6 +101,7 @@ async function TripDetailContent({
             food={food}
             ideas={ideaBucketItems}
             packingItems={packingItems}
+            links={tripLinks}
             members={members.map((member) => ({ id: member.id, label: member.email ?? member.userId ?? "Traveler" }))}
           />
         </div>

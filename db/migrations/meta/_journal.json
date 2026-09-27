@@ -85,6 +85,20 @@
       "when": 1790236860000,
       "tag": "0012_food_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790496000000,
+      "tag": "0013_trip_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790496060000,
+      "tag": "0014_trip_links_optional_description",
+      "breakpoints": true
     }
   ]
 }

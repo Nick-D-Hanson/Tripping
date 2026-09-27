@@ -154,6 +154,17 @@ export const ideaBucketItems = pgTable("idea_bucket_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const tripLinks = pgTable("trip_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),

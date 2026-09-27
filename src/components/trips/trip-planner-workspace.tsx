@@ -2,10 +2,11 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { eachDayOfInterval, format, parseISO } from "date-fns";
-import { CalendarDays, ExternalLink, Lightbulb, List, Luggage, Map as MapIcon, Route, X } from "lucide-react";
+import { CalendarDays, ExternalLink, Lightbulb, Link2, List, Luggage, Map as MapIcon, Route, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { IdeaBucket, type IdeaBucketItem } from "@/components/trips/idea-bucket";
 import { PackingList } from "@/components/trips/packing-list";
+import { TripLinks, type TripLink } from "@/components/trips/trip-links";
 import { plannerDayDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
 import { Timeline, type TimelineProps } from "@/components/trips/timeline";
 import { TripMap, type TripMapPoint } from "@/components/trips/trip-map";
@@ -14,7 +15,7 @@ import { dayKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
 type TimelineData = Pick<TimelineProps, "segments" | "stays" | "activities" | "food">;
-type TripSection = "itinerary" | "ideas" | "packing";
+type TripSection = "itinerary" | "ideas" | "packing" | "links";
 
 type PackingItem = {
   id: string;
@@ -40,6 +41,7 @@ type TripPlannerWorkspaceProps = TimelineData & {
   styleUrl?: string;
   ideas: IdeaBucketItem[];
   packingItems: PackingItem[];
+  links: TripLink[];
   members: Array<{ id: string; label: string }>;
 };
 
@@ -89,6 +91,7 @@ export function TripPlannerWorkspace({
   food,
   ideas,
   packingItems,
+  links,
   members,
 }: TripPlannerWorkspaceProps) {
   const [section, setSection] = useState<TripSection>("itinerary");
@@ -182,15 +185,16 @@ export function TripPlannerWorkspace({
     setSelectedPoint(null);
   }
 
-  const mapVisible = section !== "packing";
+  const mapVisible = section === "itinerary" || section === "ideas";
 
   return (
     <section className="w-full min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label="Trip planner">
-      <div className="grid min-h-14 grid-cols-3 gap-1 border-b bg-muted/35 p-1.5 sm:flex sm:h-12 sm:min-h-0 sm:items-center sm:gap-6 sm:bg-transparent sm:px-6 sm:py-0" role="tablist" aria-label="Trip sections">
+      <div className="grid min-h-14 grid-cols-4 gap-1 border-b bg-muted/35 p-1.5 sm:flex sm:h-12 sm:min-h-0 sm:items-center sm:gap-6 sm:bg-transparent sm:px-6 sm:py-0" role="tablist" aria-label="Trip sections">
         {([
           { id: "itinerary" as const, label: "Itinerary", icon: CalendarDays },
           { id: "ideas" as const, label: "Ideas", icon: Lightbulb, count: ideas.length },
           { id: "packing" as const, label: "Packing", icon: Luggage },
+          { id: "links" as const, label: "Links", icon: Link2, count: links.length },
         ]).map((tab) => {
           const Icon = tab.icon;
           const active = section === tab.id;
@@ -259,6 +263,8 @@ export function TripPlannerWorkspace({
         ) : null}
 
         {section === "packing" ? <PackingList tripId={tripId} canEdit={canEdit} items={packingItems} members={members} className="md:h-full" /> : null}
+
+        {section === "links" ? <TripLinks tripId={tripId} canEdit={canEdit} items={links} className="md:h-full" /> : null}
 
         {mapVisible ? (
           <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-xl border bg-card/95 p-1.5 shadow-xl backdrop-blur md:hidden" role="group" aria-label={`${section} view`}>

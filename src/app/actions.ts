@@ -6,10 +6,10 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripMembers, trips } from "@/db/schema";
+import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripLinks, tripMembers, trips } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/server";
-import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripPackingTag } from "@/lib/cache-tags";
+import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripLinksTag, tripPackingTag } from "@/lib/cache-tags";
 import { getClientIp, getRequestId, logInfo, timeAsync } from "@/lib/observability";
 import { requireTripRole } from "@/lib/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -24,6 +24,21 @@ const nullableUrl = z
   .refine(
     (value) => {
       if (!value) return true;
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Enter a valid http or https URL." },
+  );
+const requiredUrl = z
+  .string()
+  .trim()
+  .min(1, "Enter a URL.")
+  .refine(
+    (value) => {
       try {
         const url = new URL(value);
         return url.protocol === "http:" || url.protocol === "https:";
@@ -119,6 +134,10 @@ function refreshTripPacking(tripId: string) {
 
 function refreshTripIdeas(tripId: string) {
   updateTag(tripIdeasTag(tripId));
+}
+
+function refreshTripLinks(tripId: string) {
+  updateTag(tripLinksTag(tripId));
 }
 
 async function auditMutation(input: {
@@ -691,6 +710,12 @@ const ideaBucketItemSchema = z
     },
     { message: "Select an activity location from the search results." },
   );
+
+const tripLinkSchema = z.object({
+  title: z.string().trim().min(1, "Enter a title."),
+  url: requiredUrl,
+  description: nullableText,
+});
 
 const plannerDragItemSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("idea"), id: z.string().uuid() }),
@@ -1313,6 +1338,95 @@ export async function deleteIdeaBucketItem(tripId: string, itemId: string) {
     },
   );
   refreshTripIdeas(tripId);
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
+}
+
+export async function saveTripLink(tripId: string, linkId: string | null, formData: FormData) {
+  const { user, context } = await requireEditorMutationContext("saveTripLink", tripId);
+  const input = (() => {
+    try {
+      return tripLinkSchema.parse({
+        title: formValue(formData, "title"),
+        url: formValue(formData, "url"),
+        description: formValue(formData, "description"),
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  })();
+
+  if ("ok" in input) return input;
+
+  await logMutation(
+    "saveTripLink",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      linkId,
+    },
+    async () => {
+      if (linkId) {
+        await getDb()
+          .update(tripLinks)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(tripLinks.id, linkId), eq(tripLinks.tripId, tripId)));
+      } else {
+        await getDb().insert(tripLinks).values({
+          ...input,
+          tripId,
+          createdByUserId: user.id,
+        });
+      }
+
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_saved",
+        targetType: "trip_link",
+        targetId: linkId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+        metadata: {
+          mode: linkId ? "update" : "create",
+          title: input.title,
+        },
+      });
+    },
+  );
+
+  refreshTripLinks(tripId);
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
+}
+
+export async function deleteTripLink(tripId: string, linkId: string) {
+  const { user, context } = await requireEditorMutationContext("deleteTripLink", tripId);
+  await logMutation(
+    "deleteTripLink",
+    {
+      requestId: context.requestId,
+      ip: context.ip,
+      actorId: user.id,
+      tripId,
+      linkId,
+    },
+    async () => {
+      await getDb().delete(tripLinks).where(and(eq(tripLinks.id, linkId), eq(tripLinks.tripId, tripId)));
+      await auditMutation({
+        tripId,
+        actorUserId: user.id,
+        action: "trip_item_deleted",
+        targetType: "trip_link",
+        targetId: linkId,
+        requestId: context.requestId,
+        ipAddress: context.ip,
+      });
+    },
+  );
+  refreshTripLinks(tripId);
   revalidatePath(`/trips/${tripId}`);
   return { ok: true } satisfies ActionResult;
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { Backpack, Edit, Hotel, Lightbulb, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
+import { Backpack, Edit, Hotel, Lightbulb, Link2, MapPin, Plane, Plus, UtensilsCrossed } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { saveActivity, saveFood, saveIdeaBucketItem, saveLodging, savePackingItem, saveSegment } from "@/app/actions";
+import { saveActivity, saveFood, saveIdeaBucketItem, saveLodging, savePackingItem, saveSegment, saveTripLink } from "@/app/actions";
 import { actionErrorMessage } from "@/components/trips/mutation-feedback";
 import { FoodCategoryControl } from "@/components/trips/food-category-control";
 import { LocationSearch } from "@/components/trips/location-search";
@@ -509,7 +509,7 @@ export function IdeaBucketItemDialog({
   item?: {
     id: string;
     kind: "housing" | "activity" | "food";
-    description: string;
+    description: string | null;
     locationName: string | null;
     address: string | null;
     lat: number | null;
@@ -704,6 +704,84 @@ export function PackingItemDialog({
             <SubmitButton className="w-full sm:w-auto" pendingText="Saving item">
               <Backpack className="size-4" />
               Save item
+            </SubmitButton>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function TripLinkDialog({
+  tripId,
+  canEdit,
+  item,
+  triggerLabel,
+}: BaseDialogProps & {
+  item?: {
+    id: string;
+    title: string;
+    url: string;
+    description: string | null;
+  };
+  triggerLabel?: string;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!canEdit) return null;
+  const action = async (formData: FormData) => {
+    setError(null);
+    try {
+      const result = await saveTripLink(tripId, item?.id ?? null, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      toast({
+        variant: "success",
+        title: item ? "Link updated" : "Link added",
+        description: "The shared links list was refreshed.",
+      });
+      setOpen(false);
+    } catch (error) {
+      setError(actionErrorMessage(error));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant={item ? "ghost" : "secondary"} size={item ? "sm" : "default"} className={item ? undefined : "w-full sm:w-auto"}>
+          {item ? <Edit /> : <Plus />}
+          {item ? "Edit" : triggerLabel ?? "Link"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{item ? "Edit link" : "Add link"}</DialogTitle>
+          <DialogDescription>Save a useful trip resource so every collaborator can find it quickly.</DialogDescription>
+        </DialogHeader>
+        <form action={action} className="grid gap-4">
+          <FormError message={error} />
+          <Field>
+            <FieldLabel required>Title</FieldLabel>
+            <Input name="title" defaultValue={item?.title ?? ""} placeholder="Museum tickets" required />
+          </Field>
+          <Field>
+            <FieldLabel required>URL</FieldLabel>
+            <Input name="url" type="url" defaultValue={item?.url ?? ""} placeholder="https://example.com" required />
+          </Field>
+          <Field>
+            <FieldLabel>Description</FieldLabel>
+            <Textarea name="description" defaultValue={item?.description ?? ""} placeholder="What this link is for and why it matters" />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton className="w-full sm:w-auto" pendingText="Saving link">
+              <Link2 className="size-4" />
+              Save link
             </SubmitButton>
           </div>
         </form>

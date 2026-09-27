@@ -13,3 +13,7 @@ export function tripPackingTag(tripId: string) {
 export function tripIdeasTag(tripId: string) {
   return `trip:${tripId}:ideas`;
 }
+
+export function tripLinksTag(tripId: string) {
+  return `trip:${tripId}:links`;
+}
