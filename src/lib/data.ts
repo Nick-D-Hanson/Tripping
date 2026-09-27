@@ -3,11 +3,12 @@ import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db";
-import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripLinks, tripMembers, trips } from "@/db/schema";
+import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripItemVotes, tripLinks, tripMembers, trips, type TripItemVoteType } from "@/db/schema";
 import { getCurrentUser, requireUser } from "@/lib/auth/server";
 import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripLinksTag, tripPackingTag } from "@/lib/cache-tags";
 import { claimEmailInvites, getTripRole, userCanOpenTrip } from "@/lib/permissions";
 import { initialsFromValue } from "@/lib/utils";
+import type { ItemVoteSummary } from "@/lib/votes";
 
 export async function getDashboardTrips() {
   const user = await requireUser();
@@ -111,8 +112,40 @@ async function getTripLinks(tripId: string) {
   return getDb().select().from(tripLinks).where(eq(tripLinks.tripId, tripId)).orderBy(asc(tripLinks.title));
 }
 
+async function getTripItemVotes(tripId: string) {
+  return getDb()
+    .select({
+      itemType: tripItemVotes.itemType,
+      itemId: tripItemVotes.itemId,
+      userId: tripItemVotes.userId,
+      vote: tripItemVotes.vote,
+    })
+    .from(tripItemVotes)
+    .where(eq(tripItemVotes.tripId, tripId));
+}
+
+function summarizeVotes(
+  rows: Awaited<ReturnType<typeof getTripItemVotes>>,
+  currentUserId: string,
+) {
+  const summaries = new Map<string, ItemVoteSummary>();
+
+  for (const row of rows) {
+    const key = `${row.itemType}:${row.itemId}`;
+    const summary = summaries.get(key) ?? { up: 0, down: 0, current: 0 };
+    if (row.vote === 1) summary.up += 1;
+    if (row.vote === -1) summary.down += 1;
+    if (row.userId === currentUserId) summary.current = row.vote === 1 ? 1 : -1;
+    summaries.set(key, summary);
+  }
+
+  return (itemType: TripItemVoteType, itemId: string): ItemVoteSummary => (
+    summaries.get(`${itemType}:${itemId}`) ?? { up: 0, down: 0, current: 0 }
+  );
+}
+
 export async function getTripPageData(tripId: string) {
-  const [{ user, role }, trip, { segments, stays, activities: acts, food: foodItems }, members, packing, ideas, links] = await Promise.all([
+  const [{ user, role }, trip, { segments, stays, activities: acts, food: foodItems }, members, packing, ideas, links, votes] = await Promise.all([
     getTripAccessContext(tripId),
     getTripCoreRecord(tripId),
     getTripItineraryData(tripId),
@@ -120,7 +153,10 @@ export async function getTripPageData(tripId: string) {
     getTripPackingItems(tripId),
     getTripIdeaBucketItems(tripId),
     getTripLinks(tripId),
+    getTripItemVotes(tripId),
   ]);
+
+  const voteSummary = summarizeVotes(votes, user.id);
 
   const memberEmailByUserId = new Map(
     members
@@ -154,6 +190,7 @@ export async function getTripPageData(tripId: string) {
     return {
       ...item,
       creatorInitials: initialsFromValue(creatorDisplay),
+      votes: voteSummary("idea", item.id),
     };
   });
 
@@ -168,7 +205,19 @@ export async function getTripPageData(tripId: string) {
     };
   });
 
-  return { trip, segments, stays, activities: acts, food: foodItems, members, role, user, packingItems: packingWithCreators, ideaBucketItems: ideasWithCreators, tripLinks: linksWithCreators };
+  return {
+    trip,
+    segments: segments.map((item) => ({ ...item, votes: voteSummary("travel", item.id) })),
+    stays: stays.map((item) => ({ ...item, votes: voteSummary("lodging", item.id) })),
+    activities: acts.map((item) => ({ ...item, votes: voteSummary("activity", item.id) })),
+    food: foodItems.map((item) => ({ ...item, votes: voteSummary("food", item.id) })),
+    members,
+    role,
+    user,
+    packingItems: packingWithCreators,
+    ideaBucketItems: ideasWithCreators,
+    tripLinks: linksWithCreators,
+  };
 }
 
 export async function getTripShellData(tripId: string) {

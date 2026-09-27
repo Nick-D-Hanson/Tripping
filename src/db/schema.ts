@@ -1,14 +1,19 @@
 import {
   boolean,
+  check,
   date,
   doublePrecision,
+  index,
   jsonb,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const tripRoleEnum = pgEnum("trip_role", ["owner", "editor", "viewer"]);
 export const travelSegmentTypeEnum = pgEnum("travel_segment_type", [
@@ -20,6 +25,7 @@ export const travelSegmentTypeEnum = pgEnum("travel_segment_type", [
   "other",
 ]);
 export const ideaBucketItemKindEnum = pgEnum("idea_bucket_item_kind", ["housing", "activity", "food"]);
+export const tripItemVoteTypeEnum = pgEnum("trip_item_vote_type", ["travel", "lodging", "activity", "food", "idea"]);
 
 export const auditLogActionEnum = pgEnum("audit_log_action", [
   "trip_created",
@@ -165,6 +171,21 @@ export const tripLinks = pgTable("trip_links", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const tripItemVotes = pgTable("trip_item_votes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
+  itemType: tripItemVoteTypeEnum("item_type").notNull(),
+  itemId: uuid("item_id").notNull(),
+  userId: text("user_id").notNull(),
+  vote: smallint("vote").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("trip_item_votes_person_item_idx").on(table.tripId, table.itemType, table.itemId, table.userId),
+  index("trip_item_votes_trip_item_idx").on(table.tripId, table.itemType, table.itemId),
+  check("trip_item_votes_value_check", sql`${table.vote} in (-1, 1)`),
+]);
+
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),
@@ -180,5 +201,6 @@ export const auditLogs = pgTable("audit_logs", {
 
 export type AuditLogAction = (typeof auditLogActionEnum.enumValues)[number];
 export type IdeaBucketItemKind = (typeof ideaBucketItemKindEnum.enumValues)[number];
+export type TripItemVoteType = (typeof tripItemVoteTypeEnum.enumValues)[number];
 export type TripRole = (typeof tripRoleEnum.enumValues)[number];
 export type TravelSegmentType = (typeof travelSegmentTypeEnum.enumValues)[number];

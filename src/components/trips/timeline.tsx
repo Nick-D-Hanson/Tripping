@@ -7,12 +7,14 @@ import { useMemo, useState } from "react";
 import { AddItineraryItemDialog } from "@/components/trips/add-itinerary-item-dialog";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
+import { ItemVoteControl } from "@/components/trips/item-vote-control";
 import { ActivityDialog, FoodDialog, LodgingDialog, SegmentDialog } from "@/components/trips/item-dialogs";
 import { PlannerDragHandle, plannerDayDropId, plannerDayPanelDropId, plannerIdeaBucketDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
 import { Badge } from "@/components/ui/badge";
 import { SectionState } from "@/components/ui/section-state";
 import { dateValue, dayKey } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+import type { ItemVoteSummary } from "@/lib/votes";
 
 export type TimelineProps = {
   tripId: string;
@@ -40,6 +42,7 @@ export type TimelineProps = {
     startDatetime: Date;
     endDatetime: Date | null;
     notes: string | null;
+    votes: ItemVoteSummary;
   }>;
   stays: Array<{
     id: string;
@@ -52,6 +55,7 @@ export type TimelineProps = {
     checkIn: Date;
     checkOut: Date | null;
     notes: string | null;
+    votes: ItemVoteSummary;
   }>;
   activities: Array<{
     id: string;
@@ -64,6 +68,7 @@ export type TimelineProps = {
     datetime: Date;
     includeInRoute: boolean;
     notes: string | null;
+    votes: ItemVoteSummary;
   }>;
   food: Array<{
     id: string;
@@ -76,6 +81,7 @@ export type TimelineProps = {
     datetime: Date;
     category: string;
     notes: string | null;
+    votes: ItemVoteSummary;
   }>;
 };
 
@@ -88,6 +94,7 @@ type TimelineItem = {
   title: string;
   url: string | null;
   notes: string | null;
+  votes: ItemVoteSummary;
   route?: boolean;
   raw: TimelineProps["segments"][number] | TimelineProps["stays"][number] | TimelineProps["activities"][number] | TimelineProps["food"][number];
 };
@@ -164,6 +171,7 @@ export function Timeline({
       title: item.title || `${item.startLocationName} to ${item.endLocationName}`,
       url: item.url,
       notes: item.notes,
+      votes: item.votes,
       raw: item,
     })),
     ...stays.map((item) => ({
@@ -175,6 +183,7 @@ export function Timeline({
       title: item.title || item.name,
       url: item.url,
       notes: item.notes,
+      votes: item.votes,
       raw: item,
     })),
     ...activities.map((item) => ({
@@ -186,6 +195,7 @@ export function Timeline({
       title: item.title || item.name,
       url: item.url,
       notes: item.notes,
+      votes: item.votes,
       route: item.includeInRoute,
       raw: item,
     })),
@@ -198,6 +208,7 @@ export function Timeline({
       title: item.title || item.name,
       url: item.url,
       notes: item.notes,
+      votes: item.votes,
       raw: item,
     })),
   ].sort((a, b) => a.when.getTime() - b.when.getTime()), [activities, food, segments, stays]);
@@ -378,20 +389,23 @@ function TimelineItemRow({ item, tripId, canEdit, selected, last, onSelect }: { 
           {item.notes ? <span className="line-clamp-1 text-[11px] text-muted-foreground">{item.notes}</span> : null}
         </div>
 
-        {canEdit ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1 border-t pt-1.5" onClick={(event) => event.stopPropagation()}>
-            {dragEnabled ? (
-              <button type="button" className="-ml-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Drag ${item.title}`} {...attributes} {...listeners}>
-                <PlannerDragHandle label={item.title} />
-              </button>
-            ) : null}
-            {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw as TimelineProps["segments"][number]} /> : null}
-            {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw as TimelineProps["stays"][number]} /> : null}
-            {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw as TimelineProps["activities"][number]} /> : null}
-            {item.type === "food" ? <FoodDialog tripId={tripId} canEdit={canEdit} food={item.raw as TimelineProps["food"][number]} /> : null}
-            <DeleteButton kind={item.type === "travel" ? "segment" : item.type} tripId={tripId} id={item.sourceId} />
-          </div>
-        ) : null}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-2" onClick={(event) => event.stopPropagation()}>
+          <ItemVoteControl tripId={tripId} itemType={item.type} itemId={item.sourceId} label={item.title} votes={item.votes} />
+          {canEdit ? (
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {dragEnabled ? (
+                <button type="button" className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Drag ${item.title}`} {...attributes} {...listeners}>
+                  <PlannerDragHandle label={item.title} />
+                </button>
+              ) : null}
+              {item.type === "travel" ? <SegmentDialog tripId={tripId} canEdit={canEdit} segment={item.raw as TimelineProps["segments"][number]} /> : null}
+              {item.type === "lodging" ? <LodgingDialog tripId={tripId} canEdit={canEdit} stay={item.raw as TimelineProps["stays"][number]} /> : null}
+              {item.type === "activity" ? <ActivityDialog tripId={tripId} canEdit={canEdit} activity={item.raw as TimelineProps["activities"][number]} /> : null}
+              {item.type === "food" ? <FoodDialog tripId={tripId} canEdit={canEdit} food={item.raw as TimelineProps["food"][number]} /> : null}
+              <DeleteButton kind={item.type === "travel" ? "segment" : item.type} tripId={tripId} id={item.sourceId} />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

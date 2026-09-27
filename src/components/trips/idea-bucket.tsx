@@ -4,11 +4,13 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Activity, Home, MapPin, Sparkles, UtensilsCrossed } from "lucide-react";
 import { DeleteButton } from "@/components/trips/delete-button";
 import { ExternalLinkButton } from "@/components/trips/external-link-button";
+import { ItemVoteControl } from "@/components/trips/item-vote-control";
 import { ActivityDialog, FoodDialog, IdeaBucketItemDialog, LodgingDialog } from "@/components/trips/item-dialogs";
 import { PlannerDragHandle, plannerIdeaBucketDropId, usePlannerDragEnabled } from "@/components/trips/trip-planner-dnd";
 import { Badge } from "@/components/ui/badge";
 import { SectionState } from "@/components/ui/section-state";
 import { cn } from "@/lib/utils";
+import type { ItemVoteSummary } from "@/lib/votes";
 
 export type IdeaBucketItem = {
   id: string;
@@ -22,6 +24,7 @@ export type IdeaBucketItem = {
   notes: string | null;
   createdAt: Date;
   creatorInitials: string;
+  votes: ItemVoteSummary;
 };
 
 type IdeaBucketProps = {
@@ -82,6 +85,7 @@ function DraggableIdeaCard({ tripId, canEdit, item }: { tripId: string; canEdit:
           </p>
           {item.notes ? <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.notes}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2">
+            <ItemVoteControl tripId={tripId} itemType="idea" itemId={item.id} label={item.description} votes={item.votes} />
             {canEdit ? <AddToDayButton tripId={tripId} canEdit={canEdit} item={item} /> : null}
             {canEdit ? <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} item={item} /> : null}
             {canEdit ? <DeleteButton kind="idea" tripId={tripId} id={item.id} /> : null}

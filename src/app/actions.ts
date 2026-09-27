@@ -6,7 +6,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripLinks, tripMembers, trips } from "@/db/schema";
+import { activities, food, ideaBucketItems, lodging, packingItems, travelSegments, tripItemVotes, tripLinks, tripMembers, trips, type TripItemVoteType } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/server";
 import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripLinksTag, tripPackingTag } from "@/lib/cache-tags";
@@ -177,6 +177,107 @@ async function requireEditorMutationContext(actionName: string, tripId: string, 
   await requireTripRole(tripId, user, minimum);
 
   return { user, context };
+}
+
+const voteTargetSchema = z.object({
+  itemType: z.enum(["travel", "lodging", "activity", "food", "idea"]),
+  itemId: z.string().uuid(),
+  vote: z.union([z.literal(-1), z.literal(1)]),
+});
+
+async function voteTargetExists(tripId: string, itemType: TripItemVoteType, itemId: string) {
+  const db = getDb();
+  const table = itemType === "travel"
+    ? travelSegments
+    : itemType === "lodging"
+      ? lodging
+      : itemType === "activity"
+        ? activities
+        : itemType === "food"
+          ? food
+          : ideaBucketItems;
+
+  const rows = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.id, itemId), eq(table.tripId, tripId)))
+    .limit(1);
+
+  return rows.length > 0;
+}
+
+function transferVotes(
+  tripId: string,
+  sourceType: TripItemVoteType,
+  sourceId: string,
+  targetType: TripItemVoteType,
+  targetId: string,
+) {
+  return getDb()
+    .update(tripItemVotes)
+    .set({ itemType: targetType, itemId: targetId, updatedAt: new Date() })
+    .where(and(
+      eq(tripItemVotes.tripId, tripId),
+      eq(tripItemVotes.itemType, sourceType),
+      eq(tripItemVotes.itemId, sourceId),
+    ));
+}
+
+function deleteVotes(tripId: string, itemType: TripItemVoteType, itemId: string) {
+  return getDb().delete(tripItemVotes).where(and(
+    eq(tripItemVotes.tripId, tripId),
+    eq(tripItemVotes.itemType, itemType),
+    eq(tripItemVotes.itemId, itemId),
+  ));
+}
+
+export async function setTripItemVote(
+  tripId: string,
+  itemType: TripItemVoteType,
+  itemId: string,
+  vote: -1 | 1,
+) {
+  const user = await requireUser();
+  await enforceMutationRateLimit("setTripItemVote", user.id);
+  await requireTripRole(tripId, user, "viewer");
+
+  const input = voteTargetSchema.parse({ itemType, itemId, vote });
+  if (!(await voteTargetExists(tripId, input.itemType, input.itemId))) {
+    throw new Error("That trip item is no longer available.");
+  }
+
+  const db = getDb();
+  const existing = await db
+    .select({ id: tripItemVotes.id, vote: tripItemVotes.vote })
+    .from(tripItemVotes)
+    .where(and(
+      eq(tripItemVotes.tripId, tripId),
+      eq(tripItemVotes.itemType, input.itemType),
+      eq(tripItemVotes.itemId, input.itemId),
+      eq(tripItemVotes.userId, user.id),
+    ))
+    .limit(1);
+
+  if (existing[0]?.vote === input.vote) {
+    await db.delete(tripItemVotes).where(eq(tripItemVotes.id, existing[0].id));
+  } else {
+    await db
+      .insert(tripItemVotes)
+      .values({
+        tripId,
+        itemType: input.itemType,
+        itemId: input.itemId,
+        userId: user.id,
+        vote: input.vote,
+      })
+      .onConflictDoUpdate({
+        target: [tripItemVotes.tripId, tripItemVotes.itemType, tripItemVotes.itemId, tripItemVotes.userId],
+        set: { vote: input.vote, updatedAt: new Date() },
+      });
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true } satisfies ActionResult;
 }
 
 function parseDateTimeParts(value: string) {
@@ -520,6 +621,7 @@ export async function deleteSegment(tripId: string, segmentId: string) {
       segmentId,
     },
     async () => {
+      await deleteVotes(tripId, "travel", segmentId);
       await getDb().delete(travelSegments).where(and(eq(travelSegments.id, segmentId), eq(travelSegments.tripId, tripId)));
       await auditMutation({
         tripId,
@@ -588,16 +690,19 @@ export async function saveLodging(tripId: string, lodgingId: string | null, form
       convertedIdeaId: convertedIdeaId || null,
     },
     async () => {
+      let savedLodgingId = lodgingId;
       if (lodgingId) {
         await getDb()
           .update(lodging)
           .set({ ...input, updatedAt: new Date() })
           .where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
       } else {
-        await getDb().insert(lodging).values({ ...input, tripId });
+        const [created] = await getDb().insert(lodging).values({ ...input, tripId }).returning({ id: lodging.id });
+        savedLodgingId = created.id;
       }
 
-      if (convertedIdeaId) {
+      if (convertedIdeaId && savedLodgingId) {
+        await transferVotes(tripId, "idea", convertedIdeaId, "lodging", savedLodgingId);
         await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
       }
 
@@ -606,7 +711,7 @@ export async function saveLodging(tripId: string, lodgingId: string | null, form
         actorUserId: user.id,
         action: "trip_item_saved",
         targetType: "lodging",
-        targetId: lodgingId,
+        targetId: savedLodgingId,
         requestId: context.requestId,
         ipAddress: context.ip,
         metadata: {
@@ -638,6 +743,7 @@ export async function deleteLodging(tripId: string, lodgingId: string) {
       lodgingId,
     },
     async () => {
+      await deleteVotes(tripId, "lodging", lodgingId);
       await getDb().delete(lodging).where(and(eq(lodging.id, lodgingId), eq(lodging.tripId, tripId)));
       await auditMutation({
         tripId,
@@ -815,11 +921,18 @@ export async function moveTripPlannerItem(
       const [idea] = await db.select().from(ideaBucketItems).where(and(eq(ideaBucketItems.id, item.id), eq(ideaBucketItems.tripId, tripId))).limit(1);
       if (!idea) throw new Error("That idea is no longer available.");
       const datetime = dateAtLocalTime(target.day, 8, 0, target.targetOffsetMinutes);
+      const targetId = crypto.randomUUID();
       const removeIdea = db.delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, item.id), eq(ideaBucketItems.tripId, tripId)));
+      const moveVotes = db.update(tripItemVotes).set({
+        itemType: idea.kind === "housing" ? "lodging" : idea.kind,
+        itemId: targetId,
+        updatedAt: new Date(),
+      }).where(and(eq(tripItemVotes.tripId, tripId), eq(tripItemVotes.itemType, "idea"), eq(tripItemVotes.itemId, item.id)));
 
       if (idea.kind === "housing") {
         await db.batch([
           db.insert(lodging).values({
+            id: targetId,
             tripId,
             title: idea.description,
             name: idea.locationName || idea.description,
@@ -830,11 +943,13 @@ export async function moveTripPlannerItem(
             notes: idea.notes,
             checkIn: datetime,
           }),
+          moveVotes,
           removeIdea,
         ]);
       } else if (idea.kind === "activity") {
         await db.batch([
           db.insert(activities).values({
+            id: targetId,
             tripId,
             title: idea.description,
             name: idea.locationName || idea.description,
@@ -845,11 +960,13 @@ export async function moveTripPlannerItem(
             notes: idea.notes,
             datetime,
           }),
+          moveVotes,
           removeIdea,
         ]);
       } else {
         await db.batch([
           db.insert(food).values({
+            id: targetId,
             tripId,
             title: idea.description,
             name: idea.locationName || idea.description,
@@ -860,6 +977,7 @@ export async function moveTripPlannerItem(
             notes: idea.notes,
             datetime,
           }),
+          moveVotes,
           removeIdea,
         ]);
       }
@@ -870,8 +988,10 @@ export async function moveTripPlannerItem(
       const [record] = await db.select().from(table).where(and(eq(table.id, item.id), eq(table.tripId, tripId))).limit(1);
       if (!record) throw new Error(`That ${item.kind} item is no longer available.`);
 
+      const ideaId = crypto.randomUUID();
       await db.batch([
         db.insert(ideaBucketItems).values({
+          id: ideaId,
           tripId,
           kind: item.kind === "lodging" ? "housing" : item.kind,
           description: record.title || record.name,
@@ -883,6 +1003,11 @@ export async function moveTripPlannerItem(
           notes: record.notes,
           createdByUserId: user.id,
         }),
+        db.update(tripItemVotes).set({ itemType: "idea", itemId: ideaId, updatedAt: new Date() }).where(and(
+          eq(tripItemVotes.tripId, tripId),
+          eq(tripItemVotes.itemType, item.kind),
+          eq(tripItemVotes.itemId, item.id),
+        )),
         db.delete(table).where(and(eq(table.id, item.id), eq(table.tripId, tripId))),
       ]);
     }
@@ -941,16 +1066,19 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
       convertedIdeaId: convertedIdeaId || null,
     },
     async () => {
+      let savedActivityId = activityId;
       if (activityId) {
         await getDb()
           .update(activities)
           .set({ ...input, updatedAt: new Date() })
           .where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
       } else {
-        await getDb().insert(activities).values({ ...input, tripId });
+        const [created] = await getDb().insert(activities).values({ ...input, tripId }).returning({ id: activities.id });
+        savedActivityId = created.id;
       }
 
-      if (convertedIdeaId) {
+      if (convertedIdeaId && savedActivityId) {
+        await transferVotes(tripId, "idea", convertedIdeaId, "activity", savedActivityId);
         await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
       }
 
@@ -959,7 +1087,7 @@ export async function saveActivity(tripId: string, activityId: string | null, fo
         actorUserId: user.id,
         action: "trip_item_saved",
         targetType: "activity",
-        targetId: activityId,
+        targetId: savedActivityId,
         requestId: context.requestId,
         ipAddress: context.ip,
         metadata: {
@@ -992,6 +1120,7 @@ export async function deleteActivity(tripId: string, activityId: string) {
       activityId,
     },
     async () => {
+      await deleteVotes(tripId, "activity", activityId);
       await getDb().delete(activities).where(and(eq(activities.id, activityId), eq(activities.tripId, tripId)));
       await auditMutation({
         tripId,
@@ -1043,16 +1172,19 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
       convertedIdeaId: convertedIdeaId || null,
     },
     async () => {
+      let savedFoodId = foodId;
       if (foodId) {
         await getDb()
           .update(food)
           .set({ ...input, updatedAt: new Date() })
           .where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
       } else {
-        await getDb().insert(food).values({ ...input, tripId });
+        const [created] = await getDb().insert(food).values({ ...input, tripId }).returning({ id: food.id });
+        savedFoodId = created.id;
       }
 
-      if (convertedIdeaId) {
+      if (convertedIdeaId && savedFoodId) {
+        await transferVotes(tripId, "idea", convertedIdeaId, "food", savedFoodId);
         await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, convertedIdeaId), eq(ideaBucketItems.tripId, tripId)));
       }
 
@@ -1061,7 +1193,7 @@ export async function saveFood(tripId: string, foodId: string | null, formData: 
         actorUserId: user.id,
         action: "trip_item_saved",
         targetType: "food",
-        targetId: foodId,
+        targetId: savedFoodId,
         requestId: context.requestId,
         ipAddress: context.ip,
         metadata: {
@@ -1094,6 +1226,7 @@ export async function deleteFood(tripId: string, foodId: string) {
       foodId,
     },
     async () => {
+      await deleteVotes(tripId, "food", foodId);
       await getDb().delete(food).where(and(eq(food.id, foodId), eq(food.tripId, tripId)));
       await auditMutation({
         tripId,
@@ -1325,6 +1458,7 @@ export async function deleteIdeaBucketItem(tripId: string, itemId: string) {
       itemId,
     },
     async () => {
+      await deleteVotes(tripId, "idea", itemId);
       await getDb().delete(ideaBucketItems).where(and(eq(ideaBucketItems.id, itemId), eq(ideaBucketItems.tripId, tripId)));
       await auditMutation({
         tripId,
