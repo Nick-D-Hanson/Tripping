@@ -106,7 +106,9 @@ export function LocationSearch({
 }: LocationSearchProps) {
   const id = useId();
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const blurTimeoutRef = useRef<number | null>(null);
+  const selectingSuggestionRef = useRef<string | null>(null);
   const searchBoxRef = useRef<SearchBoxCore | null>(token ? new SearchBoxCore({ accessToken: token }) : null);
   const sessionTokenRef = useRef<SessionToken>(new SessionToken());
   const suggestionsRef = useRef<SearchBoxSuggestion[]>([]);
@@ -179,11 +181,43 @@ export function LocationSearch({
     };
   }, [query, selection, token]);
 
+  async function selectResult(result: LocationSelection) {
+    if (selectingSuggestionRef.current) return;
+
+    const suggestion = suggestionsRef.current.find((item) => item.mapbox_id === result.id);
+    if (!suggestion || !searchBoxRef.current) return;
+
+    selectingSuggestionRef.current = result.id;
+    setLoading(true);
+    try {
+      const response = await searchBoxRef.current.retrieve(suggestion, {
+        sessionToken: sessionTokenRef.current,
+        language: "en",
+      });
+      const nextSelection = selectionFromFeature(response.features[0] as SearchBoxFeatureSuggestion);
+      if (!nextSelection) return;
+      setQuery(nextSelection.display);
+      setSelection(nextSelection);
+      suggestionsRef.current = [];
+      setOpen(false);
+      setResults([]);
+      setMessage(null);
+      inputRef.current?.blur();
+    } catch {
+      setMessage("Location details could not be loaded.");
+      setOpen(true);
+    } finally {
+      selectingSuggestionRef.current = null;
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="relative grid gap-2">
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
         <Input
+          ref={inputRef}
           id={id}
           value={query}
           placeholder={placeholder}
@@ -226,31 +260,11 @@ export function LocationSearch({
               key={result.id}
               type="button"
               className="flex w-full gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={async () => {
-                const suggestion = suggestionsRef.current.find((item) => item.mapbox_id === result.id);
-                if (!suggestion || !searchBoxRef.current) return;
-                setLoading(true);
-                try {
-                  const response = await searchBoxRef.current.retrieve(suggestion, {
-                    sessionToken: sessionTokenRef.current,
-                    language: "en",
-                  });
-                  const nextSelection = selectionFromFeature(response.features[0] as SearchBoxFeatureSuggestion);
-                  if (!nextSelection) return;
-                  setQuery(nextSelection.display);
-                  setSelection(nextSelection);
-                  suggestionsRef.current = [];
-                  setOpen(false);
-                  setResults([]);
-                  setMessage(null);
-                } catch {
-                  setMessage("Location details could not be loaded.");
-                  setOpen(true);
-                } finally {
-                  setLoading(false);
-                }
+              onPointerDown={(event) => {
+                event.preventDefault();
+                void selectResult(result);
               }}
+              onClick={() => void selectResult(result)}
             >
               <MapPin className="mt-0.5 size-4 shrink-0" />
               <span className="min-w-0">
