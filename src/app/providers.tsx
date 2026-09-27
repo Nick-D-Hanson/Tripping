@@ -34,6 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       baseURL={appUrl}
       Link={Link}
       defaultTheme="dark"
+      emailVerification
       emailOTP
       social={
         isSafari
