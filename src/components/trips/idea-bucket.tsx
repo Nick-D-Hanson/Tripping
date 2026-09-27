@@ -85,7 +85,7 @@ function DraggableIdeaCard({ tripId, canEdit, item }: { tripId: string; canEdit:
           </p>
           {item.notes ? <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.notes}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2">
-            <ItemVoteControl tripId={tripId} itemType="idea" itemId={item.id} label={item.description} votes={item.votes} />
+            <ItemVoteControl key={`${item.votes.up}:${item.votes.down}:${item.votes.current}`} tripId={tripId} itemType="idea" itemId={item.id} label={item.description} votes={item.votes} />
             {canEdit ? <AddToDayButton tripId={tripId} canEdit={canEdit} item={item} /> : null}
             {canEdit ? <IdeaBucketItemDialog tripId={tripId} canEdit={canEdit} item={item} /> : null}
             {canEdit ? <DeleteButton kind="idea" tripId={tripId} id={item.id} /> : null}

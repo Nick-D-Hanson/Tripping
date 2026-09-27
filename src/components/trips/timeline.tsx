@@ -390,7 +390,7 @@ function TimelineItemRow({ item, tripId, canEdit, selected, last, onSelect }: { 
         </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-2" onClick={(event) => event.stopPropagation()}>
-          <ItemVoteControl tripId={tripId} itemType={item.type} itemId={item.sourceId} label={item.title} votes={item.votes} />
+          <ItemVoteControl key={`${item.votes.up}:${item.votes.down}:${item.votes.current}`} tripId={tripId} itemType={item.type} itemId={item.sourceId} label={item.title} votes={item.votes} />
           {canEdit ? (
             <div className="flex flex-wrap items-center justify-end gap-1">
               {dragEnabled ? (

@@ -1,8 +1,7 @@
 "use client";
 
 import { ThumbsDown, ThumbsUp } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useOptimistic, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { setTripItemVote } from "@/app/actions";
 import { actionErrorMessage } from "@/components/trips/mutation-feedback";
 import { useToast } from "@/components/ui/toast-provider";
@@ -29,18 +28,20 @@ function optimisticVote(current: ItemVoteSummary, direction: -1 | 1): ItemVoteSu
 }
 
 export function ItemVoteControl({ tripId, itemType, itemId, label, votes }: ItemVoteControlProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const [displayVotes, updateOptimisticVote] = useOptimistic(votes, optimisticVote);
+  const [displayVotes, setDisplayVotes] = useState(votes);
 
   function castVote(direction: -1 | 1) {
+    const previousVotes = displayVotes;
+    setDisplayVotes(optimisticVote(displayVotes, direction));
+
     startTransition(async () => {
-      updateOptimisticVote(direction);
       try {
-        await setTripItemVote(tripId, itemType, itemId, direction);
-        router.refresh();
+        const result = await setTripItemVote(tripId, itemType, itemId, direction);
+        setDisplayVotes(result.votes);
       } catch (error) {
+        setDisplayVotes(previousVotes);
         toast({
           variant: "error",
           title: "Unable to record vote",

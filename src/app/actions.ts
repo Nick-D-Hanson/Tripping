@@ -276,8 +276,23 @@ export async function setTripItemVote(
       });
   }
 
-  revalidatePath(`/trips/${tripId}`);
-  return { ok: true } satisfies ActionResult;
+  const voteRows = await db
+    .select({ userId: tripItemVotes.userId, vote: tripItemVotes.vote })
+    .from(tripItemVotes)
+    .where(and(
+      eq(tripItemVotes.tripId, tripId),
+      eq(tripItemVotes.itemType, input.itemType),
+      eq(tripItemVotes.itemId, input.itemId),
+    ));
+
+  return {
+    ok: true as const,
+    votes: {
+      up: voteRows.filter((row) => row.vote === 1).length,
+      down: voteRows.filter((row) => row.vote === -1).length,
+      current: (voteRows.find((row) => row.userId === user.id)?.vote ?? 0) as -1 | 0 | 1,
+    },
+  };
 }
 
 function parseDateTimeParts(value: string) {
