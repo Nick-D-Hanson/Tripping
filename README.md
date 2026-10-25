@@ -1,6 +1,26 @@
 # Tripping
 
-A simple collaborative trip-planning MVP built with Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui-style components, Neon Postgres, Neon Auth, Mapbox GL JS, and Vercel.
+**One shared workspace for turning travel ideas into an actual itinerary.**
+
+Tripping is a collaborative trip-planning product built with Next.js App Router, TypeScript, Neon Postgres, Neon Auth, Mapbox GL JS, and Vercel. It brings travelers, routes, stays, food ideas, and plans into one place.
+
+[**Open the live application**](https://tripping-azure.vercel.app) (sign-in required)
+
+## The engineering problem
+
+Group travel planning often gets spread across maps, messages, notes, and spreadsheets. Tripping explores how to combine those workflows while preserving clear member permissions, consistent trip state, and graceful behavior when external map services fail.
+
+### Architecture at a glance
+
+```mermaid
+flowchart TD
+    A["Next.js application"] --> B["Server actions and API routes"]
+    B --> C["Membership and input validation"]
+    C --> D["Neon Auth + Postgres"]
+    B --> E["Mapbox geocoding and routing"]
+```
+
+Authentication, authorization, and database access stay server-side. Browser-visible Mapbox configuration is separate from the server routing token.
 
 ## Features
 
@@ -12,16 +32,31 @@ A simple collaborative trip-planning MVP built with Next.js App Router, TypeScri
 - Mapbox map with distinct travel, lodging, and activity markers
 - Mapbox Directions for drive/walk segments, Optimization for selected activities, and straight-line fallback
 - Unified chronological timeline grouped by day
+- Planning surfaces for food, packing, idea buckets, trip links, and item voting
+- Audit events and request-level observability for selected changes
+
+## Verification and current boundaries
+
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm test
+```
+
+The unit tests cover trip-role policy, in-memory rate limiting, formatting, and request metadata. GitHub Actions runs those checks for proposed changes.
+
+The app uses real Neon and Mapbox services; authenticated end-to-end tests and production-like integration environments are a future milestone. The in-memory rate limiter is process-local, not a distributed production rate-limit service.
 
 ## Local Development
 
 1. Install dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
-2. Copy the example environment file:
+2. Copy the provided example environment file:
 
 ```bash
 cp .env.example .env.local
@@ -112,6 +147,8 @@ Routing behavior:
 ```bash
 npm run dev
 npm run lint
+npm run typecheck
+npm test
 npm run build
 npm run db:migrate
 ```
