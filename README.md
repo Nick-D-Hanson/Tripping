@@ -1,117 +1,65 @@
 # Tripping
 
-A simple collaborative trip-planning MVP built with Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui-style components, Neon Postgres, Neon Auth, Mapbox GL JS, and Vercel.
+**Plan a trip together—from the first destination idea to a shared itinerary.**
 
-## Features
+Tripping is a collaborative travel-planning application that puts group decisions, locations, logistics, and daily plans in one workspace instead of scattering them across chats, maps, and spreadsheets.
 
-- Neon Auth login/signup with protected app routes
-- Trip dashboard, creation, editing, deletion, and detail pages
-- Collaborator management with `owner`, `editor`, and `viewer` roles
-- Server-side permission checks for all mutations and route APIs
-- Travel segments, lodging, and activities with create/edit/delete controls
-- Mapbox map with distinct travel, lodging, and activity markers
-- Mapbox Directions for drive/walk segments, Optimization for selected activities, and straight-line fallback
-- Unified chronological timeline grouped by day
+[**Explore the live application**](https://tripping-azure.vercel.app) (sign-in required) · [View the repository](https://github.com/Nick-D-Hanson/Tripping)
 
-## Local Development
+**Project type:** Full-stack product | **Stack:** Next.js, TypeScript, Neon Postgres/Auth, Mapbox, Vercel
 
-1. Install dependencies:
+## The problem and approach
 
-```bash
-npm install
+Coordinating travel with multiple people involves competing itineraries, maps, reservations, and ideas. Tripping combines these into a shared experience with clear roles and a single view of the trip.
+
+The core product decision is to keep trip data connected: a location found through search can become an activity, appear on the map, and be organized into the trip timeline.
+
+## What the application does
+
+- **Collaborative planning:** Manage trip members with owner, editor, and viewer roles.
+- **Visual itinerary:** Organize travel, stays, activities, and food into a day-by-day timeline with an interactive map.
+- **Location and routing:** Search for places, view routes, and fall back to straight-line geometry if a routing provider fails.
+- **Group decisions:** Collect ideas and links, manage packing lists, and vote on candidate activities.
+- **Practical safeguards:** Validate changes server-side and restrict mutations to authorized members.
+
+## Engineering at a glance
+
+```mermaid
+flowchart LR
+  A[Next.js interface] --> B[Server actions and APIs]
+  B --> C[Authentication and role checks]
+  C --> D[Neon Postgres]
+  B --> E[Mapbox search and routing]
 ```
 
-2. Copy the example environment file:
+**Notable tradeoffs:** Permissions are enforced on the server, not only in the UI. Route-provider failures degrade gracefully. A process-local rate limiter is used for selected paths; distributed enforcement and authenticated end-to-end coverage are future hardening work.
+
+## Quality and current status
+
+The application is deployed to Vercel. GitHub Actions runs linting, TypeScript checks, and 12 unit tests covering permissions and utilities. These checks validate selected code behavior but do not replace authenticated browser and integration tests.
+
+There is no claim of comprehensive integration or browser-test coverage. A future milestone is a dedicated test database and verified authenticated end-to-end scenarios.
+
+## Run locally
+
+Requires Node.js 22, a Neon database/Auth project, and Mapbox keys. Copy `.env.example` to `.env.local`, supply your own configuration, and never commit credentials.
 
 ```bash
-cp .env.example .env.local
-```
-
-3. Fill in:
-
-```bash
-DATABASE_URL=
-NEON_AUTH_BASE_URL=
-NEXT_PUBLIC_AUTH_URL=/api/auth
-NEXT_PUBLIC_MAPBOX_TOKEN=
-MAPBOX_SECRET_TOKEN=
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-4. Apply the migration in your Neon SQL editor, or run Drizzle after `DATABASE_URL` is set:
-
-```bash
+npm ci
 npm run db:migrate
-```
-
-5. Start the app:
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-## Neon Database Setup
-
-1. Create a Neon project and copy the pooled or direct Postgres connection string into `DATABASE_URL`.
-2. Run `db/migrations/0001_init.sql`.
-3. The app stores auth user IDs as text fields so it can work with Neon Auth while avoiding brittle assumptions about internal auth table names.
-
-The schema includes:
-
-- `trips`
-- `trip_members`
-- `travel_segments`
-- `lodging`
-- `activities`
-
-## Neon Auth Setup
-
-1. Enable Neon Auth for the Neon project.
-2. Add the local app URL to the allowed origins/callback URLs in Neon Auth.
-3. Set `NEON_AUTH_BASE_URL` to your Neon Auth endpoint.
-4. Keep `NEXT_PUBLIC_AUTH_URL=/api/auth` for the local proxy route.
-
-This MVP uses the currently installed `@neondatabase/auth` Next.js helpers:
-
-- `authApiHandler()` mounted at `/api/auth/[...path]`
-- `neonAuthMiddleware()` for `/trips/*`
-- `neonAuth()` for server-side session reads
-- `@neondatabase/auth-ui` for login/signup and user menu UI
-
-## Mapbox Setup
-
-1. Create a Mapbox account and token.
-2. Set `NEXT_PUBLIC_MAPBOX_TOKEN` for Mapbox GL JS.
-3. Set `MAPBOX_SECRET_TOKEN` for Directions/Optimization API calls. For local MVP testing, a public token with the right scopes can also work.
-
-Travel segment behavior:
-
-- Segment type selection is intentionally limited to Drive and Flight for the MVP.
-- Start and end addresses are searched through Mapbox geocoding.
-- Latitude and longitude are derived by the app and stored behind the scenes for maps and routes.
-
-Routing behavior:
-
-- Drive travel segments call Mapbox Directions.
-- Flight travel segments fall back to point-to-point lines.
-- Activities with `include_in_route = true` are sent to Mapbox Optimization when there are at least two stops.
-- Failed routing calls gracefully return straight-line geometry.
-
-## Vercel Deployment
-
-1. Push the repository to GitHub.
-2. Import it into Vercel.
-3. Add the same environment variables in the Vercel project settings.
-4. Add your Vercel production URL and preview URLs to Neon Auth allowed origins/callback URLs.
-5. Deploy.
-
-## Useful Commands
+Run quality checks with:
 
 ```bash
-npm run dev
 npm run lint
-npm run build
-npm run db:migrate
+npm run typecheck
+npm test
 ```
+
+The [database migrations](db/migrations), [source code](src/), and [GitHub Actions workflow](.github/workflows/ci.yml) provide more technical detail. Production deployment configuration and authentication callbacks must be set up separately.
+
+## Next improvements
+
+Add authenticated integration tests for invitations, role-sensitive edits, and routing failures; document architecture with real screenshots; then make application behavior and deployment consistency observable through release checks.

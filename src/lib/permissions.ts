@@ -2,26 +2,11 @@ import { and, eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { tripMembers, trips, type TripRole } from "@/db/schema";
 import type { getCurrentUser } from "@/lib/auth/server";
+import { hasAtLeast } from "@/lib/trip-role-policy";
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-const roleRank: Record<TripRole, number> = {
-  viewer: 0,
-  editor: 1,
-  owner: 2,
-};
-
-export function canEdit(role: TripRole | null) {
-  return !!role && roleRank[role] >= roleRank.editor;
-}
-
-export function canManage(role: TripRole | null) {
-  return role === "owner";
-}
-
-export function hasAtLeast(role: TripRole | null, minimum: TripRole) {
-  return !!role && roleRank[role] >= roleRank[minimum];
-}
+export { canEdit, canManage, hasAtLeast } from "@/lib/trip-role-policy";
 
 export async function claimEmailInvites(user: CurrentUser) {
   if (!user.email) return;
