@@ -36,7 +36,7 @@ flowchart LR
 
 ## Quality and current status
 
-The application is deployed to Vercel. The proposed [quality-foundation PR](https://github.com/Nick-D-Hanson/Tripping/pull/1) adds automated linting, TypeScript checks, and 12 unit tests for permissions and utilities. It has passed GitHub Actions but is not yet merged to production.
+The application is deployed to Vercel. GitHub Actions runs linting, TypeScript checks, and 12 unit tests covering permissions and utilities. These checks validate selected code behavior but do not replace authenticated browser and integration tests.
 
 There is no claim of comprehensive integration or browser-test coverage. A future milestone is a dedicated test database and verified authenticated end-to-end scenarios.
 
