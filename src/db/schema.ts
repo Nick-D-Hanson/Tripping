@@ -60,6 +60,15 @@ export const tripMembers = pgTable("trip_members", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const tripCovers = pgTable("trip_covers", {
+  tripId: uuid("trip_id").primaryKey().references(() => trips.id, { onDelete: "cascade" }),
+  image: text("image").notNull(),
+  x: doublePrecision("x").notNull().default(50),
+  y: doublePrecision("y").notNull().default(50),
+  zoom: doublePrecision("zoom").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const travelSegments = pgTable("travel_segments", {
   id: uuid("id").primaryKey().defaultRandom(),
   tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),

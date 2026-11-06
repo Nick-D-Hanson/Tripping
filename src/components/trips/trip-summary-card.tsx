@@ -6,9 +6,10 @@ import { TripDeleteDialog } from "@/components/trips/trip-delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { fmtDate } from "@/lib/dates";
+import { TripCoverDialog, coverStyle, coverUrl, type TripCover } from "@/components/trips/trip-cover-dialog";
 
 type TripSummaryCardProps = {
-  trip: {
+  trip: TripCover & {
     id: string;
     name: string;
     description: string | null;
@@ -22,7 +23,8 @@ export function TripSummaryCard({ trip }: TripSummaryCardProps) {
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-2xl transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-xl hover:shadow-primary/10">
       <Link href={`/trips/${trip.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        <div className="trip-card-art relative h-40 overflow-hidden sm:h-48">
+        <div className={`${trip.coverVersion ? "bg-muted" : "trip-card-art"} relative h-40 overflow-hidden sm:h-48`}>
+          {trip.coverVersion ? <div className="absolute inset-0" style={coverStyle(coverUrl(trip.id, trip.coverVersion), trip.coverX ?? 50, trip.coverY ?? 50, trip.coverZoom ?? 1)} /> : null}
           <Badge className="absolute left-4 top-4 border-0 bg-white/85 text-primary shadow-sm backdrop-blur" variant="secondary">
             {trip.role}
           </Badge>
@@ -44,9 +46,10 @@ export function TripSummaryCard({ trip }: TripSummaryCardProps) {
           </div>
         </CardContent>
       </Link>
-      {trip.role === "owner" ? (
-        <CardContent className="mt-auto flex justify-end border-t bg-muted/35 px-5 py-2.5 sm:px-6">
-          <TripDeleteDialog tripId={trip.id} tripName={trip.name} />
+      {trip.role !== "viewer" ? (
+        <CardContent className="mt-auto flex flex-wrap justify-between gap-2 border-t bg-muted/35 px-5 py-2.5 sm:px-6">
+          <TripCoverDialog trip={trip} />
+          {trip.role === "owner" ? <TripDeleteDialog tripId={trip.id} tripName={trip.name} /> : null}
         </CardContent>
       ) : null}
     </Card>

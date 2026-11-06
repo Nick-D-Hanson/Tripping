@@ -9,6 +9,7 @@ import { tripCoreTag, tripIdeasTag, tripItineraryTag, tripLinksTag, tripPackingT
 import { claimEmailInvites, getTripRole, userCanOpenTrip } from "@/lib/permissions";
 import { initialsFromValue } from "@/lib/utils";
 import type { ItemVoteSummary } from "@/lib/votes";
+import { tripCovers } from "@/db/schema";
 
 export async function getDashboardTrips() {
   const user = await requireUser();
@@ -26,9 +27,14 @@ export async function getDashboardTrips() {
       startDate: trips.startDate,
       endDate: trips.endDate,
       role: tripMembers.role,
+      coverVersion: tripCovers.updatedAt,
+      coverX: tripCovers.x,
+      coverY: tripCovers.y,
+      coverZoom: tripCovers.zoom,
     })
     .from(trips)
     .innerJoin(tripMembers, eq(trips.id, tripMembers.tripId))
+    .leftJoin(tripCovers, eq(trips.id, tripCovers.tripId))
     .where(membershipFilter)
     .orderBy(desc(trips.startDate));
 }
