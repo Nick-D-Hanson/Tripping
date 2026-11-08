@@ -23,7 +23,7 @@ export function TripDeleteDialog({ tripId, tripName }: TripDeleteDialogProps) {
 
   const action = async (formData: FormData) => {
     setError(null);
-    const result = await deleteTripWithConfirmation(tripId, tripName, formData);
+    const result = await deleteTripWithConfirmation(tripId, formData);
     if (result && !result.ok) {
       setError(result.error);
       return;
@@ -32,14 +32,19 @@ export function TripDeleteDialog({ tripId, tripName }: TripDeleteDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      setOpen(nextOpen);
+      if (!nextOpen) {
+        setConfirmation("");
+        setError(null);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={(event) => event.preventDefault()}
         >
           <Trash2 className="size-4" />
           Delete

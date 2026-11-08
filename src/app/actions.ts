@@ -493,16 +493,16 @@ export async function deleteTrip(tripId: string) {
   redirect("/trips?notice=trip-deleted");
 }
 
-export async function deleteTripWithConfirmation(tripId: string, expectedName: string, formData: FormData) {
+export async function deleteTripWithConfirmation(tripId: string, formData: FormData) {
   const user = await requireUser();
   const context = await enforceMutationRateLimit("deleteTripWithConfirmation", user.id);
   await requireTripRole(tripId, user, "owner");
-  const confirmation = z.string().trim().min(1).parse(formValue(formData, "tripNameConfirmation"));
-
-  if (confirmation !== expectedName) {
+  const confirmation = formValue(formData, "tripNameConfirmation").trim();
+  if (!confirmation) {
     return { ok: false, error: "Trip name confirmation did not match." } satisfies ActionResult;
   }
 
+  let deleted = false;
   await logMutation(
     "deleteTripWithConfirmation",
     {
@@ -512,14 +512,18 @@ export async function deleteTripWithConfirmation(tripId: string, expectedName: s
       tripId,
     },
     async () => {
-      await getDb().delete(trips).where(eq(trips.id, tripId));
+      const [removed] = await getDb().delete(trips)
+        .where(and(eq(trips.id, tripId), eq(trips.name, confirmation)))
+        .returning({ id: trips.id });
+      if (!removed) return;
+      deleted = true;
 
       await auditMutation({
-        tripId,
+        tripId: null,
         actorUserId: user.id,
         action: "trip_deleted",
         targetType: "trip",
-        targetId: tripId,
+        targetId: removed.id,
         requestId: context.requestId,
         ipAddress: context.ip,
         metadata: {
@@ -528,6 +532,9 @@ export async function deleteTripWithConfirmation(tripId: string, expectedName: s
       });
     },
   );
+  if (!deleted) {
+    return { ok: false, error: "The trip name no longer matches. Refresh the page and try again." } satisfies ActionResult;
+  }
   refreshTripCore(tripId);
   revalidatePath("/trips");
   redirect("/trips?notice=trip-deleted");
